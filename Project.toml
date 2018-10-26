@@ -1,0 +1,6 @@
+authors = ["vit.skvara <vit.skvara@gmail.com>"]
+name = "ADMetricEvaluation"
+uuid = "142cbc84-d93d-11e8-01fa-3d89fcb4591f"
+version = "0.1.0"
+
+[deps]
