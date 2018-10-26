@@ -1,5 +1,9 @@
 module ADMetricEvaluation
 
-greet() = print("Hello World!")
+using CSV
+using EvalCurves
+using ScikitLearn
+
+include("src.jl")
 
 end # module

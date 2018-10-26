@@ -1,6 +1,8 @@
-authors = ["vit.skvara <vit.skvara@gmail.com>"]
 name = "ADMetricEvaluation"
 uuid = "142cbc84-d93d-11e8-01fa-3d89fcb4591f"
+authors = ["vit.skvara <vit.skvara@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+ScikitLearn = "3646fa90-6ef7-5e7e-9f22-8aca16db6324"
