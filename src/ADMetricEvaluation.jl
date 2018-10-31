@@ -9,6 +9,7 @@ using StatsBase
 using kNN
 using DataFrames
 using Statistics
+using ProgressMeter
 
 const Float = Float32
 

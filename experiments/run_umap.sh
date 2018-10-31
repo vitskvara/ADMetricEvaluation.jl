@@ -1,0 +1,10 @@
+#julia run_umap_experiment.jl yeast
+julia run_umap_experiment.jl blood-transfusion
+julia run_umap_experiment.jl breast-cancer-wisconsin
+julia run_umap_experiment.jl ionosphere
+julia run_umap_experiment.jl sonar
+julia run_umap_experiment.jl ecoli
+julia run_umap_experiment.jl iris
+julia run_umap_experiment.jl waveform-1
+julia run_umap_experiment.jl wine
+julia run_umap_experiment.jl isolet

@@ -35,7 +35,7 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 	bounds = EvalCurves.estimate_bounds(X)
 	all_scores = score_fun(X)
 	for (fpr, label) in [(0.05, :vol_at_5), (0.01, :vol_at_1)]
-		threshold = EvalCurves.threshold_at_fpr(scores, y_test, fpr)
+		threshold = EvalCurves.threshold_at_fpr(scores, y_test, fpr; warn = false)
 		vf() = EvalCurves.volume_at_fpr(threshold, bounds, score_fun, mc_volume_iters)
 		
 		metric_vals[label] = EvalCurves.mc_volume_estimate(vf, mc_volume_repeats)
@@ -100,6 +100,7 @@ function run_umap_experiment(dataset_name, model_list, model_names, param_struct
 	mkpath(save_path)
 	# now loop over all subclasses in a problem
 	results = []
+	p = Progress(length(model_list) * length(multiclass_data))
 	for (i, (data, class_label)) in enumerate(multiclass_data)
 		dataset_label = (class_label=="" ? dataset_name : dataset_name*"-"*class_label)
 		# and over all models 
@@ -107,6 +108,7 @@ function run_umap_experiment(dataset_name, model_list, model_names, param_struct
 			res = run_experiment(model, model_name, params[1], params[2], data, dataset_label; 
 				save_path = save_path, exp_kwargs...)
 			push!(results, res)
+			ProgressMeter.next!(p; showvalues = [(:dataset,dataset_label,) (:model,model_name)])
 		end
 	end
 	return results
