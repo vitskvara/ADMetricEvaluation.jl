@@ -77,7 +77,7 @@ function create_multiclass(data::ADDataset, normal_labels, anomaly_labels)
     end
 end
 
-function split_data(data::ADDataset, p::Real; seed = nothing, difficulty = nothing)
+function split_data(data::ADDataset, p::Real=0.8; seed = nothing, difficulty = nothing)
     @assert 0 <= p <= 1
     normal = data.normal
     if difficulty == nothing # sample all anomaly classes into the test dataset
@@ -111,5 +111,6 @@ function split_data(data::ADDataset, p::Real; seed = nothing, difficulty = nothi
 
     # split the data
     Ntr = Int(floor(p*N))
-    return normal[:,1:Ntr], hcat(normal[:,Ntr+1:end], anomalous)
+    return normal[:,1:Ntr], fill(0,Ntr), # training data and labels
+        hcat(normal[:,Ntr+1:end], anomalous), vcat(fill(0,N-Ntr), fill(1,size(anomalous,2))) # testing data and labels
 end
