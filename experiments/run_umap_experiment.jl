@@ -4,17 +4,16 @@ using Plots
 plotly()
 include("models.jl")
 
-data_path = "/home/vit/vyzkum/anomaly_detection/data/UCI/umap"
 outpath = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
 mkpath(outpath)
 
 dataset = ARGS[1]
 
 # settings
-n_experiments = 10
+n_experiments = 1
 p = 0.8
-mc_volume_iters = 10000
-mc_volume_repeats = 10
+mc_volume_iters = 1
+mc_volume_repeats = 1
 
 # models
 models = [kNN_model, LOF_model, OCSVM_model, IF_model]
@@ -29,5 +28,3 @@ param_struct = [
 @time res = ADME.run_umap_experiment(dataset, models, model_names, param_struct, outpath;
 	n_experiments = n_experiments, p = p, mc_volume_iters = mc_volume_iters, 
 	mc_volume_repeats = mc_volume_repeats)
-
-

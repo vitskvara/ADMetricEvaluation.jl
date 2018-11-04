@@ -1,3 +1,23 @@
+function precision_at_p(score_fun, X, y, p::Real; seed = nothing)
+	N_a = sum(y)
+	N_n = length(y) - N_a
+	N = size(X,2)
+	@assert N == length(y)
+	(seed == nothing) ? nothing : Random.seed(seed)
+	# this is the number of sampled anomalies so that in the resulting subsampled dataset 
+	# the ratio anomalous/(normal + anomalous) = p
+	k = Int(floor(N*p/(1-p)))
+	if k > N_a
+		@warn "Not enough anomalies to sample from"
+		return NaN
+	end
+	inds_sampled = sample(1:N_a, k, replace = false)
+	Random.seed() # restart the seed
+	
+	scores = score_fun(hcat(X[:,y.==0], X[:,y.==1][:,inds_sampled])) 
+	return EvalCurves.precision_at_k(scores, vcat(y[y.==0], y[y.==1][inds_sampled]), k)
+end
+
 """
 	experiment(model, parameters, X_train, y_train, X_test, y_test;
 	mc_volume_iters::Int = 100000, mc_volume_repeats::Int = 10)
@@ -49,11 +69,11 @@ end
 
 Run the experiment n times with different resamplings of data.
 """
-function experiment_nfold(model, parameters, param_names, data::ADDataset; 
+function experiment_nfold(model, parameters, param_names, data::UCI.ADDataset; 
 	n_experiments::Int = 10, p::Real = 0.8, exp_kwargs...)
 	results = []
 	for iexp in 1:n_experiments
-		X_tr, y_tr, X_tst, y_tst = split_data(data, p; seed = iexp)
+		X_tr, y_tr, X_tst, y_tst = UCI.split_data(data, p; seed = iexp)
 		res = experiment(model, parameters, X_tr, y_tr, X_tst, y_tst; exp_kwargs...)
 		for (par_name, par_val) in zip(param_names, parameters)
 			insert!(res, 1, par_val, par_name) # append the column to the beginning of the df
@@ -73,7 +93,7 @@ gridsearch(f, parameters...) = vcat(map(f, Base.product(parameters...))...)
 This iterates for a selected model over all params and dataset resampling iterations. 
 If savepath is specified, saves the result in the given path.
 """
-function run_experiment(model, model_name, param_vals, param_names, data::ADDataset, dataset_name;
+function run_experiment(model, model_name, param_vals, param_names, data::UCI.ADDataset, dataset_name;
 	save_path = "", exp_nfold_kwargs...)
     res = gridsearch(x -> experiment_nfold(model, x, param_names, data; exp_nfold_kwargs...), param_vals...)
     insert!(res, 1, model_name, :model)
@@ -91,10 +111,10 @@ end
 
 """
 function run_umap_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
-	umap_data_path = "/home/vit/vyzkum/anomaly_detection/data/UCI/umap", exp_kwargs...)
+	umap_data_path = "", exp_kwargs...)
 	# load data
-	raw_data = get_umap_data(dataset_name, umap_data_path)
-	multiclass_data = create_multiclass(raw_data...)
+	raw_data = UCI.get_umap_data(dataset_name, umap_data_path)
+	multiclass_data = UCI.create_multiclass(raw_data...)
 	# setup path
 	save_path = joinpath(master_save_path, dataset_name)
 	mkpath(save_path)

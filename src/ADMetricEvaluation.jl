@@ -10,10 +10,10 @@ using kNN
 using DataFrames
 using Statistics
 using ProgressMeter
+using UCI
 
 const Float = Float32
 
-include("data.jl")
 include("experiment.jl")
 
 end # module
