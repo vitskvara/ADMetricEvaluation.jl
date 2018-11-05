@@ -35,7 +35,7 @@ function clusterdness(X,y)
 	elseif sum(y) == length(y) # no normal data points
 		return NaN
 	else
-		return Statistics.var(X[:,y.==0])/Statistics.var(X[:,y.==1])
+		return Statistics.mean(Statistics.var(X[:,y.==0], dims=2))/Statistics.mean(Statistics.var(X[:,y.==1], dims=2))
 	end
 end
 
