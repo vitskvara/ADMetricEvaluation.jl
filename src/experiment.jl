@@ -99,6 +99,8 @@ function experiment_nfold(model, parameters, param_names, data::UCI.ADDataset;
 			insert!(res, 1, par_val, par_name) # append the column to the beginning of the df
 		end
 		insert!(res, 1, iexp, :iteration)
+		# also, compute clusterdness
+		res[:clusterdness] = clusterdness(hcat(X_tr, X_tst), vcat(y_tr, y_tst))
 		push!(results, res) # res is a dataframe 
 	end
 	return vcat(results...)
