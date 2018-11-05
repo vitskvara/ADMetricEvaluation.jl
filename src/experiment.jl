@@ -25,6 +25,21 @@ function precision_at_p(score_fun, X, y, p::Real; seed = nothing)
 end
 
 """
+	clusterdness(X,y)
+
+Returns the ratio of variance between normal and anomalous samples.
+"""
+function clusterdness(X,y)
+	if sum(y) == 0 # no anomalies
+		return NaN
+	elseif sum(y) == length(y) # no normal data points
+		return NaN
+	else
+		return Statistics.var(X[:,y.==0])/Statistics.var(X[:,y.==1])
+	end
+end
+
+"""
 	experiment(model, parameters, X_train, y_train, X_test, y_test;
 	mc_volume_iters::Int = 100000, mc_volume_repeats::Int = 10)
 
@@ -111,9 +126,9 @@ end
 
 """
 	function run_umap_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
-	umap_data_path = "/home/vit/vyzkum/anomaly_detection/data/UCI/umap", exp_kwargs...)
+	umap_data_path = "", exp_kwargs...)
 
-
+Runs the experiment for UMAP data given a dataset name.
 """
 function run_umap_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
 	umap_data_path = "", exp_kwargs...)

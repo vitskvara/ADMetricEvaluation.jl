@@ -45,4 +45,10 @@ zyem = UCI.split_data(yy[1][1], 0.8, difficulty = [:easy, :medium])
 		return res
 	end
 	@test ADME.precision_at_p(sf_wrong, x, y, 0.2) == 2/3
+
+	# test of clusterdness
+	@test isnan(ADME.clusterdness(randn(5,200), fill(0,200)))
+	@test isnan(ADME.clusterdness(randn(5,200), fill(1,200)))
+	@test abs(ADME.clusterdness(randn(5,200), vcat(fill(0,100), fill(1,100))) - 1.0) < 1.0
+	println(ADME.clusterdness(randn(5,200), vcat(fill(0,100), fill(1,100))))
 end
