@@ -1,9 +1,15 @@
+"""
+	precision_at_p(score_fun, X, y, p::Real; seed = nothing)
+
+Compute precision at p% most anomalous samples. Subsample anomalies so 
+that the ratio anomalous/all = p.
+"""
 function precision_at_p(score_fun, X, y, p::Real; seed = nothing)
 	N_a = sum(y)
 	N_n = length(y) - N_a
 	N = size(X,2)
 	@assert N == length(y)
-	(seed == nothing) ? nothing : Random.seed(seed)
+	(seed == nothing) ? nothing : Random.seed!(seed)
 	# this is the number of sampled anomalies so that in the resulting subsampled dataset 
 	# the ratio anomalous/(normal + anomalous) = p
 	k = Int(floor(N*p/(1-p)))
@@ -11,10 +17,10 @@ function precision_at_p(score_fun, X, y, p::Real; seed = nothing)
 		@warn "Not enough anomalies to sample from"
 		return NaN
 	end
-	inds_sampled = sample(1:N_a, k, replace = false)
-	Random.seed() # restart the seed
+	inds_sampled = StatsBase.sample(1:N_a, k, replace = false)
+	Random.seed!() # restart the seed
 	
-	scores = score_fun(hcat(X[:,y.==0], X[:,y.==1][:,inds_sampled])) 
+	scores = score_fun(hcat(X[:,y.==0], X[:,y.==1][:,inds_sampled]))
 	return EvalCurves.precision_at_k(scores, vcat(y[y.==0], y[y.==1][inds_sampled]), k)
 end
 
@@ -42,9 +48,8 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 	metric_vals[:auc_at_1] = EvalCurves.auc_at_p(fprvec,tprvec,0.01; normalize = true)
 	
 	# instead of precision@k we will compute precision@p
-	N = size(X_test,2)
-	metric_vals[:prec_at_5] = EvalCurves.precision_at_k(scores, y_test, Int(floor(N*0.05)))
-	metric_vals[:prec_at_1] = EvalCurves.precision_at_k(scores, y_test, Int(floor(N*0.01)))
+	metric_vals[:prec_at_5] = precision_at_p(score_fun, X_test, y_test, 0.05)
+	metric_vals[:prec_at_1] = precision_at_p(score_fun, X_test, y_test, 0.01)
 
 	# tpr@fpr
 	metric_vals[:tpr_at_5] = EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.05)
@@ -133,22 +138,3 @@ function run_umap_experiment(dataset_name, model_list, model_names, param_struct
 	end
 	return results
 end
-
-#function run_experiment(models, model_names, param_vals, param_names, data::ADDataset;
-#	exp_nfold_kwargs...)
-#    results = []
-#    for (model, model_name, p_vals, p_names) in zip(models, model_names, param_vals, param_names)
-#	    model_res = gridsearch(x -> experiment_nfold(model, x, p_names, data;
-#	    	exp_nfold_kwargs...), p_vals...)
-#	    insert!(model_res, 1, model_name, :model)
-#	    push!(results, model_res)
-#	end
-#    return vcat(results...)
-#end
-
-# cycle over iteration/seed with fixed parameters, subdataset and model
-# cycle over parameters with fixed subdataset and model
-# save here - all rows of (iterations x params) with model and subdataset fixed
-# cycle over model with fixed subdataset
-# cycle over subdatasets in a dataset
-

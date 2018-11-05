@@ -6,7 +6,6 @@ using ScikitLearn
 using DelimitedFiles
 using Random
 using StatsBase
-using kNN
 using DataFrames
 using Statistics
 using ProgressMeter
