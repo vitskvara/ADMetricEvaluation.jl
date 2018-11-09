@@ -73,7 +73,6 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 	# enclosed volume
 	X = hcat(X_train, X_test)
 	bounds = EvalCurves.estimate_bounds(X)
-	all_scores = score_fun(X)
 	for (fpr, label) in [(0.05, :vol_at_5), (0.01, :vol_at_1)]
 		threshold = EvalCurves.threshold_at_fpr(scores, y_test, fpr; warn = false)
 		vf() = EvalCurves.volume_at_fpr(threshold, bounds, score_fun, mc_volume_iters)
@@ -100,7 +99,7 @@ function experiment_nfold(model, parameters, param_names, data::UCI.ADDataset;
 		end
 		insert!(res, 1, iexp, :iteration)
 		# also, compute clusterdness
-		res[:clusterdness] = clusterdness(hcat(X_tr, X_tst), vcat(y_tr, y_tst))
+		#res[:clusterdness] = clusterdness(hcat(X_tr, X_tst), vcat(y_tr, y_tst))
 		push!(results, res) # res is a dataframe 
 	end
 	return vcat(results...)
