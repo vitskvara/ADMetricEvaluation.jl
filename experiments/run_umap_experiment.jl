@@ -4,7 +4,14 @@ using Plots
 plotly()
 include("models.jl")
 
-outpath = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
+host = gethostname()
+#master path where data will be stored
+if host == "vit"
+	outpath = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
+elseif host == "axolotl.utia.cas.cz"
+	outpath = "/home/skvara/work/anomaly_detection/data/metric_evaluation/umap_data"
+end
+
 mkpath(outpath)
 
 dataset = ARGS[1]
@@ -12,7 +19,7 @@ dataset = ARGS[1]
 # settings
 n_experiments = 10
 p = 0.8
-mc_volume_iters = 1000
+mc_volume_iters = 10000
 mc_volume_repeats = 10
 
 # models
