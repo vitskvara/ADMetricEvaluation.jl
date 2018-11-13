@@ -10,6 +10,8 @@ using DataFrames
 using Statistics
 using ProgressMeter
 using UCI
+using Clustering
+using Distances
 
 const Float = Float32
 

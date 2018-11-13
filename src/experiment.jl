@@ -149,8 +149,60 @@ function run_umap_experiment(dataset_name, model_list, model_names, param_struct
 			res = run_experiment(model, model_name, params[1], params[2], data, dataset_label; 
 				save_path = save_path, exp_kwargs...)
 			push!(results, res)
-			ProgressMeter.next!(p; showvalues = [(:dataset,dataset_label,) (:model,model_name)])
+			ProgressMeter.next!(p; showvalues = [(:dataset,dataset_label), (:model,model_name)])
 		end
 	end
 	return results
+end
+
+volume(bounds) = prod(map(x->x[2]-x[1], bounds))
+
+function n_clusters(X, h=4)
+	D = pairwise(Euclidean(),X)
+	hc = hclust(D)
+	return length(unique(cutree(hc,h=h)))
+end
+
+function dataset_chars(X_tr, y_tr, X_tst, y_tst)
+	res = DataFrame()
+	X = hcat(X_tr, X_tst)
+	y = vcat(y_tr, y_tst)
+	res[:anomalous_p] = sum(y)/length(y)
+	res[:clusterdness] = clusterdness(X,y)
+	res[:M], res[:N] = size(X)
+	# compute the volume ratios
+	vx = volume(EvalCurves.estimate_bounds(X))
+	res[:norm_vol] = volume(EvalCurves.estimate_bounds(X[:,y.==0]))/vx
+	res[:anomal_vol] = volume(EvalCurves.estimate_bounds(X[:,y.==1]))/vx
+	res[:n_clusters] = NaN
+	try
+		res[:n_clusters] = n_clusters(X)
+	catch
+		nothing
+	end
+	return res
+end
+
+function umap_dataset_chars(output_path; umap_data_path="", p=0.8, nexp=10)
+	datasets = readdir(UCI.get_raw_datapath())
+	results = []
+	mkpath(output_path)
+	prog = Progress(length(datasets)) 
+	for dataset in datasets
+		multiclass_data = UCI.create_multiclass(UCI.get_umap_data(dataset, umap_data_path)...)	
+		for (data, class_label) in multiclass_data
+			dataset_label = (class_label=="" ? dataset : dataset*"-"*class_label)
+			for iexp in 1:nexp
+				X_tr, y_tr, X_tst, y_tst = UCI.split_data(data, p; seed = iexp)
+				line = dataset_chars(X_tr, y_tr, X_tst, y_tst)
+				insert!(line, 1, iexp, :iteration)
+				insert!(line, 1, dataset_label, :dataset)
+				push!(results, line)
+			end
+		end
+		ProgressMeter.next!(prog; showvalues = [(:dataset,dataset)])
+	end
+	df = vcat(results...)
+	CSV.write(joinpath(output_path, "dataset_overview.csv"), df)
+	return df
 end

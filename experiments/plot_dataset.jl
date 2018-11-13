@@ -41,15 +41,12 @@ function correlation_grid_plot(dataset, isubd, data_path;
 	end
 
 	Nm = length(metrics)
-	figure()
+	f = figure(figsize=(15,10))
 	global n = 0
 	for (j, m2) in enumerate(metrics)
 		for (i, m1) in enumerate(metrics)
 			n += 1
 			subplot(Nm, Nm, n)
-			if j == Nm xlabel(String(m1)) end
-			if i == 1 ylabel(String(m2)) end
-
 			# first, create a dummy scatter plot to get the x axis limits
 			for model in models
 				mdf = filter(x->x[:model]==model, merged_df)
@@ -77,13 +74,16 @@ function correlation_grid_plot(dataset, isubd, data_path;
 					push!(_y, mdf[m2])
 				end
 				# add the fit line
-				plot_linear_fit(vcat(_x...), vcat(_y...))
+				try
+					plot_linear_fit(vcat(_x...), vcat(_y...))
+				catch
+					nothing
+				end
 				# add the correlation coefficient
 				r = round(Statistics.cor(vcat(_x...), vcat(_y...)),digits=2)
 				#text(0.1,0.9,"R=$r", size=8)
 				_line = plt[:Line2D]([1], [1],color="w")
 				legend([_line],["R=$r"], frameon=false)
-
 			else
 				for model in models
 					mdf = filter(x->x[:model]==model, merged_df)
@@ -92,10 +92,16 @@ function correlation_grid_plot(dataset, isubd, data_path;
 				#mdf = filter(x->x[:model] in models, merged_df)
 				#PyPlot.plt[:hist2d](mdf[m1], mdf[m2], 20, cmap = "hot_r")
 			end
+			# axis formatting
+			if j == Nm xlabel(String(m1)) end
+			if i == 1 ylabel(String(m2)) end
+			if j != Nm ax[:set_xticklabels]([]) end
 		end
 	end
+	tight_layout()
+	f[:subplots_adjust](hspace=0)
 	suptitle(subd)
-	show()
+	return f
 end
 
 ### MAIN ###
@@ -106,4 +112,5 @@ if basename(PROGRAM_FILE) == basename(@__FILE__)
 	isubd = (length(ARGS) > 1) ? isubd = Int(Meta.parse(ARGS[2])) : 1
 	data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
 	correlation_grid_plot(dataset, isubd, data_path)
+	show()
 end
