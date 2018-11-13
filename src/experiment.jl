@@ -155,15 +155,48 @@ function run_umap_experiment(dataset_name, model_list, model_names, param_struct
 	return results
 end
 
+"""
+	volume(bounds)
+
+Compute volume enclosed by bounds.
+"""
 volume(bounds) = prod(map(x->x[2]-x[1], bounds))
 
-function n_clusters(X, h=4)
+"""
+	n_clusters_hclust(X, h=4)
+
+Number of clusters as computed by hclust.
+"""
+function n_clusters_hclust(X, h=4)
 	maxn = min(5000,size(X,2))
-	D = pairwise(Euclidean(),X[:,sample(1:maxn, maxn, replace=false)])
+	D = pairwise(Euclidean(),X[:,StatsBase.sample(1:maxn, maxn, replace=false)])
 	hc = hclust(D)
 	return length(unique(cutree(hc,h=h)))
 end
 
+"""
+	n_clusters_affinity_prop(X)
+
+Number of clusters as computed by affinity propagation.
+"""
+function n_clusters_affinity_prop(X)
+	maxn = min(5000,size(X,2))
+	S = -pairwise(Euclidean(),X[:,StatsBase.sample(1:maxn, maxn, replace=false)])
+	med2 = 1/maxn
+	#medS = Statistics.median(S)
+	#medS = minimum(S)
+	for i in 1:maxn
+		S[i,i] = medS
+	end
+	ap = affinityprop(S)
+	return length(unique(ap.assignments))
+end
+
+"""
+	dataset_chars(X_tr, y_tr, X_tst, y_tst)
+
+Compute different dataset characteristics.
+"""
 function dataset_chars(X_tr, y_tr, X_tst, y_tst)
 	res = DataFrame()
 	X = hcat(X_tr, X_tst)
@@ -175,15 +208,19 @@ function dataset_chars(X_tr, y_tr, X_tst, y_tst)
 	vx = volume(EvalCurves.estimate_bounds(X))
 	res[:norm_vol] = volume(EvalCurves.estimate_bounds(X[:,y.==0]))/vx
 	res[:anomal_vol] = volume(EvalCurves.estimate_bounds(X[:,y.==1]))/vx
-	res[:n_clusters] = NaN
 	try
-		res[:n_clusters] = n_clusters(X)
+		res[:n_clusters] = n_clusters_hclust(X)
 	catch
-		nothing
+		res[:n_clusters] = NaN
 	end
 	return res
 end
 
+"""
+	umap_dataset_chars(output_path; umap_data_path="", p=0.8, nexp=10)
+
+Compute characteristics of all datasets.
+"""
 function umap_dataset_chars(output_path; umap_data_path="", p=0.8, nexp=10)
 	datasets = readdir(UCI.get_raw_datapath())
 	results = []
@@ -205,5 +242,18 @@ function umap_dataset_chars(output_path; umap_data_path="", p=0.8, nexp=10)
 	end
 	df = vcat(results...)
 	CSV.write(joinpath(output_path, "dataset_overview.csv"), df)
-	return df
+	return df 	
+end
+
+"""
+	umap_data(dataset, i)
+
+Get X and y given a dataset name and subdataset index.
+"""
+function umap_data(dataset, i)
+	data = UCI.get_umap_data(dataset)
+	multidata = UCI.create_multiclass(data...)
+	i = min(i, length(multidata))
+	X_tr, y_tr, X_tst, y_tst = UCI.split_data(multidata[i][1])
+	return hcat(X_tr, X_tst), vcat(y_tr, y_tst)
 end
