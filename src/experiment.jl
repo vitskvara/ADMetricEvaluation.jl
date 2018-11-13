@@ -158,7 +158,8 @@ end
 volume(bounds) = prod(map(x->x[2]-x[1], bounds))
 
 function n_clusters(X, h=4)
-	D = pairwise(Euclidean(),X)
+	maxn = min(5000,size(X,2))
+	D = pairwise(Euclidean(),X[:,sample(1:maxn, maxn, replace=false)])
 	hc = hclust(D)
 	return length(unique(cutree(hc,h=h)))
 end
