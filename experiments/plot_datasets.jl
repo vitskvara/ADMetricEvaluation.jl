@@ -1,6 +1,7 @@
 using ADMetricEvaluation
 using PyPlot
 
+host = gethostname()
 if host == "vit"
 	data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
 	dataset_info = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/dataset_overview.csv"
