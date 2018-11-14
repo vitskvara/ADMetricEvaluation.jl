@@ -10,7 +10,7 @@ if host == "vit"
 	data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
 	dataset_info = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/dataset_overview.csv"
 elseif host == "axolotl.utia.cas.cz"
-	outpath = "/home/skvara/work/anomaly_detection/data/metric_evaluation/umap_data"
+	data_path = "/home/skvara/work/anomaly_detection/data/metric_evaluation/umap_data"
 	dataset_info = "/home/skvara/work/anomaly_detection/data/metric_evaluation/dataset_overview.csv"
 end
 
