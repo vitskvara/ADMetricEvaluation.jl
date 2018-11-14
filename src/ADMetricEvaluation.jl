@@ -12,9 +12,12 @@ using ProgressMeter
 using UCI
 using Clustering
 using Distances
+using PyPlot
+using Printf
 
 const Float = Float32
 
 include("experiment.jl")
+include("plots.jl")
 
 end # module
