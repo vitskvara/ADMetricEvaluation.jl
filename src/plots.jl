@@ -7,6 +7,8 @@ mergesubd(name::String, df_list::Array{DataFrame,1}, metrics::Array{Symbol, 1}) 
 	mergeds(filter(x->x[:dataset][1]==name,df_list), metrics)
 mergesubd(names::Array{String,1}, df_list::Array{DataFrame,1}, metrics::Array{Symbol, 1}) = 
 	mergeds(filter(x->x[:dataset][1] in names,df_list), metrics)
+filter_string_by_beginning(x::String, master::String) = (length(x) < length(master)) ? false : (x[1:length(master)]==master)
+filter_string_by_beginnings(x::String, masters::Array{String,1}) = any(map(y->filter_string_by_beginning(x,y),masters))
 function linear_fit(x,y)
 	# y = Xb, where X = [ones', x']'
 	s = size(x)
@@ -22,7 +24,75 @@ function plot_linear_fit(x,y)
 	_y = hcat(ones(2), _x)*b
 	plot(_x, _y, c="k", lw=1)
 end
-function correlation_grid_plot(dataset, isubd, data_path;
+#metrics = [:iteration, :auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, 
+#			:vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1]
+function correlation_grid_plot(df::DataFrame, metrics::Array{Symbol,1}, 
+	models::Array{String,1}, sup_title::String)
+	Nm = length(metrics)
+	f = figure(figsize=(15,10))
+	global n = 0
+	for (j, m2) in enumerate(metrics)
+		for (i, m1) in enumerate(metrics)
+			n += 1
+			subplot(Nm, Nm, n)
+			# first, create a dummy scatter plot to get the x axis limits
+			for model in models
+				mdf = filter(x->x[:model]==model, df)
+				PyPlot.scatter(mdf[m1], mdf[m2], c="w")
+			end
+			ax = plt[:gca]()
+			_xlim = ax[:get_ylim]()
+			#ax[:cla]()
+
+			if i == j
+				for model in models
+					mdf = filter(x->x[:model]==model, df)
+					PyPlot.plt[:hist](mdf[m1], 20, alpha = 1.0, label = model, density = true,
+						histtype = "step")
+				end
+				xlim(_xlim)
+				if i==j==1 legend() end
+			elseif j>i
+				_x = []
+				_y = []
+				for model in models
+					mdf = filter(x->x[:model]==model, df)
+					PyPlot.scatter(mdf[m1], mdf[m2], s = 15, alpha = 0.2)
+					push!(_x, mdf[m1])
+					push!(_y, mdf[m2])
+				end
+				# add the fit line
+				try
+					plot_linear_fit(vcat(_x...), vcat(_y...))
+				catch
+					nothing
+				end
+				# add the correlation coefficient
+				r = round(Statistics.cor(vcat(_x...), vcat(_y...)),digits=2)
+				#text(0.1,0.9,"R=$r", size=8)
+				_line = plt[:Line2D]([1], [1],color="w")
+				legend([_line],["R=$r"], frameon=false)
+			else
+				for model in models
+					mdf = filter(x->x[:model]==model, df)
+					PyPlot.scatter(mdf[m1], mdf[m2], s = 15, alpha = 0.2)
+				end
+				#mdf = filter(x->x[:model] in models, df)
+				#PyPlot.plt[:hist2d](mdf[m1], mdf[m2], 20, cmap = "hot_r")
+			end
+			# axis formatting
+			if j == Nm xlabel(String(m1)) end
+			if i == 1 ylabel(String(m2)) end
+			if j != Nm ax[:set_xticklabels]([]) end
+		end
+	end
+	suptitle(sup_title)
+	tight_layout(rect=[0, 0.03, 1, 0.95])
+	f[:subplots_adjust](hspace=0)
+	return f
+end
+
+function single_dataset_corr_grid(dataset, isubd, data_path;
 		metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, :vol_at_5],
 		models = ["kNN", "IF", "LOF", "OCSVM"],
 		dataset_info = "")
@@ -42,65 +112,8 @@ function correlation_grid_plot(dataset, isubd, data_path;
 		# if characteristics for individual training/testing splits are computed
 		info_df = info_df[info_df[:dataset].==subd,:][1,:]
 	end
-	
-	Nm = length(metrics)
-	f = figure(figsize=(15,10))
-	global n = 0
-	for (j, m2) in enumerate(metrics)
-		for (i, m1) in enumerate(metrics)
-			n += 1
-			subplot(Nm, Nm, n)
-			# first, create a dummy scatter plot to get the x axis limits
-			for model in models
-				mdf = filter(x->x[:model]==model, merged_df)
-				PyPlot.scatter(mdf[m1], mdf[m2], c="w")
-			end
-			ax = plt[:gca]()
-			_xlim = ax[:get_ylim]()
-			#ax[:cla]()
 
-			if i == j
-				for model in models
-					mdf = filter(x->x[:model]==model, merged_df)
-					PyPlot.plt[:hist](mdf[m1], 20, alpha = 1.0, label = model, density = true,
-						histtype = "step")
-				end
-				xlim(_xlim)
-				if i==j==1 legend() end
-			elseif j>i
-				_x = []
-				_y = []
-				for model in models
-					mdf = filter(x->x[:model]==model, merged_df)
-					PyPlot.scatter(mdf[m1], mdf[m2], s = 15, alpha = 0.2)
-					push!(_x, mdf[m1])
-					push!(_y, mdf[m2])
-				end
-				# add the fit line
-				try
-					plot_linear_fit(vcat(_x...), vcat(_y...))
-				catch
-					nothing
-				end
-				# add the correlation coefficient
-				r = round(Statistics.cor(vcat(_x...), vcat(_y...)),digits=2)
-				#text(0.1,0.9,"R=$r", size=8)
-				_line = plt[:Line2D]([1], [1],color="w")
-				legend([_line],["R=$r"], frameon=false)
-			else
-				for model in models
-					mdf = filter(x->x[:model]==model, merged_df)
-					PyPlot.scatter(mdf[m1], mdf[m2], s = 15, alpha = 0.2)
-				end
-				#mdf = filter(x->x[:model] in models, merged_df)
-				#PyPlot.plt[:hist2d](mdf[m1], mdf[m2], 20, cmap = "hot_r")
-			end
-			# axis formatting
-			if j == Nm xlabel(String(m1)) end
-			if i == 1 ylabel(String(m2)) end
-			if j != Nm ax[:set_xticklabels]([]) end
-		end
-	end
+	# create the suptitle
 	st = subd
 	if dataset_info != ""
 		st = st*"\n"
@@ -115,8 +128,51 @@ function correlation_grid_plot(dataset, isubd, data_path;
 			st *= "$info=$sx  "
 		end
 	end
-	suptitle(st)
-	tight_layout(rect=[0, 0.03, 1, 0.95])
-	f[:subplots_adjust](hspace=0)
-	return f
+	
+	# now call the plotting function
+	return correlation_grid_plot(merged_df, metrics, models, st)
+end
+
+function collect_all_data(data_path, aggreg_f = Statistics.mean; 
+	metrics= [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, 
+			:vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1])
+	datasets = readdir(data_path)
+	res = []
+	for dataset in datasets
+		dfs = loaddata(dataset, data_path)
+		df = mergeds(dfs, vcat([:iteration], metrics)) 
+		push!(res, aggregate(df, [:dataset, :model], aggreg_f))
+	end
+	return vcat(res...)
+end
+
+function join_with_info(all_data::DataFrame, dataset_info::String)
+	infodf = CSV.read(dataset_info)
+	# drop iterations
+	infodf = infodf[infodf[:iteration].==1,filter(x->x!=:iteration,names(infodf))]
+	# do the join
+	return join(all_data, infodf, on=:dataset)
+end
+
+function correlation_grid_datasets(data_path::String, dataset_info::String; 
+	metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, :vol_at_5],
+	models = ["kNN", "IF", "LOF", "OCSVM"],
+	datasets = nothing,
+	aggreg_f = Statistics.mean)
+	# first get the aggregated collection of all data
+	alldf = join_with_info(collect_all_data(data_path, aggreg_f; metrics = metrics), dataset_info)
+	# filter out only some datasets
+	if datasets != nothing
+		alldf = alldf[map(x->filter_string_by_beginnings(x,datasets),alldf[:dataset]),:]
+	end
+	
+	# filter out the new metric names - after aggregation they are different
+	metrics = names(alldf)[map(x->filter_string_by_beginnings(x,string.(metrics)), string.(names(alldf)))]
+	
+	# create the suptitle
+	st = ""
+
+	# now call the plotting function
+	return correlation_grid_plot(alldf, metrics, models, st)
+#	return alldf, metrics
 end

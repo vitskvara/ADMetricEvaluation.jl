@@ -20,7 +20,7 @@ for dataset in datasets
 		readdir(joinpath(data_path,dataset))))
 	for (n, subdataset) in enumerate(_subdatasets)
 		try
-			f = ADMetricEvaluation.correlation_grid_plot(dataset, n, data_path;
+			f = ADMetricEvaluation.single_dataset_corr_grid(dataset, n, data_path;
 				dataset_info = dataset_info, models=models)
 			savefig(joinpath(outpath, "$subdataset.png"))
 			close()

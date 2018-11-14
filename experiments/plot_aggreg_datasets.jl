@@ -1,9 +1,5 @@
 import ADMetricEvaluation
 ADME = ADMetricEvaluation
-
-dataset = ARGS[1]
-#dataset = "iris"
-isubd = (length(ARGS) > 1) ? isubd = Int(Meta.parse(ARGS[2])) : 1
 host = gethostname()
 #master path where data will be stored
 if host == "vit"
@@ -14,5 +10,10 @@ elseif host == "axolotl.utia.cas.cz"
 	dataset_info = "/home/skvara/work/anomaly_detection/data/metric_evaluation/dataset_overview.csv"
 end
 
-ADME.single_dataset_corr_grid(dataset, isubd, data_path; dataset_info=dataset_info)
+#datasets = filter(x->!(x in ["ecoli", "iris", "isolet", "multiple-features", "pendigits",
+#	"statlog-satimage", "statlog-shuttle", "synthetic-control-chart"]), 
+	#readdir(data_path))
+datasets = ["abalone", "blood-transfusion", "breast-cancer-wisconsin", "breast-tissue", "yeast"]
+models = ["kNN", "LOF", "OCSVM", "IF"]
+f = ADME.correlation_grid_datasets(data_path, dataset_info; datasets=datasets, models=models)
 show()
