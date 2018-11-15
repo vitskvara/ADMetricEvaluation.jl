@@ -22,7 +22,10 @@ datasets = ["abalone", "blood-transfusion", "breast-cancer-wisconsin", "breast-t
 # page-blocks to rozbiji
 models = ["kNN", "LOF", "OCSVM", "IF"]
 filters = []
+#filters = [(:clusterdness, ".<100")]
 #filters=[(:n_clusters, ".<=2"), (:norm_vol, ".>0.8")]
-f = ADME.correlation_grid_datasets(data_path, dataset_info; 
-	datasets=datasets, models=models,filters=filters)
+data_chars = [:anomalous_p, :log_clusterdness, :norm_vol, :anomal_vol, :n_clusters]
+f = ADME.scatter_grid_metrics_datachars(data_path, dataset_info; 
+	datasets=datasets, models=models,filters=filters,
+	data_chars = data_chars)
 show()

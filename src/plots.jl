@@ -158,7 +158,9 @@ function correlation_grid_datasets(data_path::String, dataset_info::String;
 	metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, :vol_at_5],
 	models = ["kNN", "IF", "LOF", "OCSVM"],
 	datasets = nothing,
-	aggreg_f = Statistics.mean)
+	aggreg_f = Statistics.mean,
+	filters = []
+	)
 	# first get the aggregated collection of all data
 	alldf = join_with_info(collect_all_data(data_path, aggreg_f; metrics = metrics), dataset_info)
 	# filter out only some datasets
@@ -172,7 +174,98 @@ function correlation_grid_datasets(data_path::String, dataset_info::String;
 	# create the suptitle
 	st = ""
 
+	# filter out by some columns
+	if filters != []
+		for _filter in filters
+			fstring = repr(alldf[_filter[1]]) * _filter[2]
+			alldf = alldf[eval(Meta.parse(fstring)),:]
+			st *= string(_filter[1])*_filter[2]*"  " 
+		end
+	end
+
 	# now call the plotting function
 	return correlation_grid_plot(alldf, metrics, models, st)
+#	return alldf, metrics
+end
+function scatter_grid_plot(df::DataFrame, metrics::Array{Symbol,1}, 
+	data_chars::Array{Symbol,1},
+	models::Array{String,1}, sup_title::String)
+	Nm = length(metrics)
+	Nc = length(data_chars)
+	f = figure(figsize=(15,10))
+	global n = 0
+	for (j, m) in enumerate(metrics)
+		for (i, c) in enumerate(data_chars)
+			n += 1
+			subplot(Nm, Nc, n)
+			_x = []
+			_y = []
+			for model in models
+				mdf = filter(x->x[:model]==model, df)
+				PyPlot.scatter(mdf[c], mdf[m], s = 15, alpha = 0.2)
+				push!(_x, mdf[c])
+				push!(_y, mdf[m])
+			end
+			# add the fit line
+			try
+				plot_linear_fit(vcat(_x...), vcat(_y...))
+			catch
+				nothing
+			end
+			# add the correlation coefficient
+			r = round(Statistics.cor(vcat(_x...), vcat(_y...)),digits=2)
+			#text(0.1,0.9,"R=$r", size=8)
+			_line = plt[:Line2D]([1], [1],color="w")
+			legend([_line],["R=$r"], frameon=false)
+
+			# axis formatting
+			ax = plt[:gca]()
+			if j == Nm xlabel(String(c)) end
+			if i == 1 ylabel(String(m)) end
+			if j != Nm ax[:set_xticklabels]([]) end
+			if i != 1 ax[:set_yticklabels]([]) end
+		end
+	end
+	suptitle(sup_title)
+	tight_layout(rect=[0, 0.03, 1, 0.95])
+	f[:subplots_adjust](hspace=0, wspace=0)
+	return f
+end
+
+function scatter_grid_metrics_datachars(data_path::String, dataset_info::String; 
+	metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, :vol_at_5],
+	data_chars = [:anomalous_p, :clusterdness, :norm_vol, :anomal_vol, :n_clusters],
+	models = ["kNN", "IF", "LOF", "OCSVM"],
+	datasets = nothing,
+	aggreg_f = Statistics.mean,
+	filters = []
+	)
+	# first get the aggregated collection of all data
+	alldf = join_with_info(collect_all_data(data_path, aggreg_f; metrics = metrics), dataset_info)
+	# filter out only some datasets
+	if datasets != nothing
+		alldf = alldf[map(x->filter_string_by_beginnings(x,datasets),alldf[:dataset]),:]
+	end
+
+	# log clusterdness
+	alldf[:log_clusterdness] = log.(alldf[:clusterdness])
+
+	# filter out the new metric names - after aggregation they are different
+	metrics = names(alldf)[map(x->filter_string_by_beginnings(x,string.(metrics)), string.(names(alldf)))]
+	
+	# create the suptitle
+	st = ""
+
+	# filter out by some columns
+	if filters != []
+		for _filter in filters
+			fstring = repr(alldf[_filter[1]]) * _filter[2]
+			alldf = alldf[eval(Meta.parse(fstring)),:]
+			st *= string(_filter[1])*_filter[2]*"  " 
+		end
+	end
+
+	# now call the plotting function
+	return scatter_grid_plot(alldf, metrics, data_chars, models, st)
 #	return alldf, metrics
 end
