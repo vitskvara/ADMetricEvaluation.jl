@@ -70,14 +70,14 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 	metric_vals[:tpr_at_5] = EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.05)
 	metric_vals[:tpr_at_1] = EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.01)
 	
-	# enclosed volume
+	# volume of the anomalous samples
 	X = hcat(X_train, X_test)
 	bounds = EvalCurves.estimate_bounds(X)
 	for (fpr, label) in [(0.05, :vol_at_5), (0.01, :vol_at_1)]
 		threshold = EvalCurves.threshold_at_fpr(scores, y_test, fpr; warn = false)
 		vf() = EvalCurves.volume_at_fpr(threshold, bounds, score_fun, mc_volume_iters)
 		
-		metric_vals[label] = EvalCurves.mc_volume_estimate(vf, mc_volume_repeats)
+		metric_vals[label] = 1-EvalCurves.mc_volume_estimate(vf, mc_volume_repeats)
 	end	
 	return metric_vals
 end
