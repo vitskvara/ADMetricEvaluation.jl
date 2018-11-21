@@ -2,7 +2,7 @@ import ADMetricEvaluation
 ADME = ADMetricEvaluation
 
 dataset = ARGS[1]
-#dataset = "iris"
+
 isubd = (length(ARGS) > 1) ? isubd = Int(Meta.parse(ARGS[2])) : 1
 host = gethostname()
 #master path where data will be stored

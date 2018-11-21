@@ -27,7 +27,7 @@ end
 #metrics = [:iteration, :auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, 
 #			:vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1]
 function correlation_grid_plot(df::DataFrame, metrics::Array{Symbol,1}, 
-	models::Array{String,1}, sup_title::String)
+	models::Array{String,1}, sup_title::String; correlation::String="kendall")
 	Nm = length(metrics)
 	f = figure(figsize=(15,10))
 	global n = 0
@@ -68,10 +68,17 @@ function correlation_grid_plot(df::DataFrame, metrics::Array{Symbol,1},
 					nothing
 				end
 				# add the correlation coefficient
-				r = round(Statistics.cor(vcat(_x...), vcat(_y...)),digits=2)
-				#text(0.1,0.9,"R=$r", size=8)
+				r = NaN
+				_leg = ""
+				if correlation == "kendall"
+					r = round(StatsBase.corkendall(vcat(_x...), vcat(_y...)),digits=2)
+					_leg = "τ=$r"
+				elseif correlation == "pearson"
+					r = round(Statistics.cor(vcat(_x...), vcat(_y...)),digits=2)
+					_leg = "R=$r"
+				end
 				_line = plt[:Line2D]([1], [1],color="w")
-				legend([_line],["R=$r"], frameon=false)
+				legend([_line],[_leg], frameon=false)
 			else
 				for model in models
 					mdf = filter(x->x[:model]==model, df)
@@ -189,7 +196,8 @@ function correlation_grid_datasets(data_path::String, dataset_info::String;
 end
 function scatter_grid_plot(df::DataFrame, metrics::Array{Symbol,1}, 
 	data_chars::Array{Symbol,1},
-	models::Array{String,1}, sup_title::String)
+	models::Array{String,1}, sup_title::String; 
+	correlation::String="kendall")
 	Nm = length(metrics)
 	Nc = length(data_chars)
 	f = figure(figsize=(15,10))
@@ -213,10 +221,17 @@ function scatter_grid_plot(df::DataFrame, metrics::Array{Symbol,1},
 				nothing
 			end
 			# add the correlation coefficient
-			r = round(Statistics.cor(vcat(_x...), vcat(_y...)),digits=2)
-			#text(0.1,0.9,"R=$r", size=8)
+			r = NaN
+			_leg = ""
+			if correlation == "kendall"
+				r = round(StatsBase.corkendall(vcat(_x...), vcat(_y...)),digits=2)
+				_leg = "τ=$r"
+			elseif correlation == "pearson"
+				r = round(Statistics.cor(vcat(_x...), vcat(_y...)),digits=2)
+				_leg = "R=$r"
+			end
 			_line = plt[:Line2D]([1], [1],color="w")
-			legend([_line],["R=$r"], frameon=false)
+			legend([_line],[_leg], frameon=false)
 
 			# axis formatting
 			ax = plt[:gca]()
