@@ -134,7 +134,7 @@ Runs the experiment for UMAP data given a dataset name.
 function run_umap_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
 	umap_data_path = "", exp_kwargs...)
 	# load data
-	raw_data = UCI.get_umap_data(dataset_name, umap_data_path)
+	raw_data = UCI.get_umap_data(dataset_name, path=umap_data_path)
 	multiclass_data = UCI.create_multiclass(raw_data...)
 	# setup path
 	save_path = joinpath(master_save_path, dataset_name)
@@ -151,6 +151,32 @@ function run_umap_experiment(dataset_name, model_list, model_names, param_struct
 			push!(results, res)
 			ProgressMeter.next!(p; showvalues = [(:dataset,dataset_label), (:model,model_name)])
 		end
+	end
+	return results
+end
+
+"""
+	function run_synthetic_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
+	umap_data_path = "", exp_kwargs...)
+
+Runs the experiment for UMAP data given a dataset name.
+"""
+function run_synthetic_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
+	data_path = "", exp_kwargs...)
+	# load data
+	data = UCI.get_synthetic_data(dataset_name, path=data_path)
+	# setup path
+	save_path = joinpath(master_save_path, dataset_name)
+	mkpath(save_path)
+	# now loop over all subclasses in a problem
+	results = []
+	p = Progress(length(model_list))
+	# and over all models 
+	for (model, model_name, params) in zip(model_list, model_names, param_struct)
+		res = run_experiment(model, model_name, params[1], params[2], data, dataset_name; 
+			save_path = save_path, exp_kwargs...)
+		push!(results, res)
+		ProgressMeter.next!(p; showvalues = [(:dataset,dataset_name), (:model,model_name)])
 	end
 	return results
 end
