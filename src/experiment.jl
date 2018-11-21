@@ -89,10 +89,10 @@ end
 Run the experiment n times with different resamplings of data.
 """
 function experiment_nfold(model, parameters, param_names, data::UCI.ADDataset; 
-	n_experiments::Int = 10, p::Real = 0.8, exp_kwargs...)
+	n_experiments::Int = 10, p::Real = 0.8, standardize=false, exp_kwargs...)
 	results = []
 	for iexp in 1:n_experiments
-		X_tr, y_tr, X_tst, y_tst = UCI.split_data(data, p; seed = iexp)
+		X_tr, y_tr, X_tst, y_tst = UCI.split_data(data, p; seed = iexp, standardize=standardize)
 		res = experiment(model, parameters, X_tr, y_tr, X_tst, y_tst; exp_kwargs...)
 		for (par_name, par_val) in zip(param_names, parameters)
 			insert!(res, 1, par_val, par_name) # append the column to the beginning of the df
@@ -217,11 +217,11 @@ function dataset_chars(X_tr, y_tr, X_tst, y_tst)
 end
 
 """
-	umap_dataset_chars(output_path; umap_data_path="", p=0.8, nexp=10)
+	umap_dataset_chars(output_path; umap_data_path="", p=0.8, nexp=10, standardize=false)
 
 Compute characteristics of all datasets.
 """
-function umap_dataset_chars(output_path; umap_data_path="", p=0.8, nexp=10)
+function umap_dataset_chars(output_path; umap_data_path="", p=0.8, nexp=10, standardize=false)
 	datasets = readdir(UCI.get_raw_datapath())
 	results = []
 	mkpath(output_path)
@@ -231,7 +231,8 @@ function umap_dataset_chars(output_path; umap_data_path="", p=0.8, nexp=10)
 		for (data, class_label) in multiclass_data
 			dataset_label = (class_label=="" ? dataset : dataset*"-"*class_label)
 			for iexp in 1:nexp
-				X_tr, y_tr, X_tst, y_tst = UCI.split_data(data, p; seed = iexp)
+				X_tr, y_tr, X_tst, y_tst = UCI.split_data(data, p; seed = iexp, 
+					standardize=standardize)
 				line = dataset_chars(X_tr, y_tr, X_tst, y_tst)
 				insert!(line, 1, iexp, :iteration)
 				insert!(line, 1, dataset_label, :dataset)
@@ -246,14 +247,14 @@ function umap_dataset_chars(output_path; umap_data_path="", p=0.8, nexp=10)
 end
 
 """
-	umap_data(dataset, i)
+	umap_data(dataset, i; standardize=false)
 
 Get X and y given a dataset name and subdataset index.
 """
-function umap_data(dataset, i)
+function umap_data(dataset, i; standardize=false)
 	data = UCI.get_umap_data(dataset)
 	multidata = UCI.create_multiclass(data...)
 	i = min(i, length(multidata))
-	X_tr, y_tr, X_tst, y_tst = UCI.split_data(multidata[i][1])
+	X_tr, y_tr, X_tst, y_tst = UCI.split_data(multidata[i][1]; standardize=standardize)
 	return hcat(X_tr, X_tst), vcat(y_tr, y_tst)
 end

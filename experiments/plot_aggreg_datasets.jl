@@ -1,3 +1,4 @@
+using PyPlot
 import ADMetricEvaluation
 ADME = ADMetricEvaluation
 host = gethostname()
@@ -5,11 +6,13 @@ host = gethostname()
 if host == "vit"
 	data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
 	dataset_info = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/dataset_overview.csv"
+	output_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/aggregated_plots"
 elseif host == "axolotl.utia.cas.cz"
 	data_path = "/home/skvara/work/anomaly_detection/data/metric_evaluation/umap_data"
 	dataset_info = "/home/skvara/work/anomaly_detection/data/metric_evaluation/dataset_overview.csv"
+	output_path = "/home/skvara/work/anomaly_detection/data/metric_evaluation/aggregated_plots"
 end
-
+mkpath(output_path)
 #datasets = filter(x->!(x in ["ecoli", "iris", "isolet", "multiple-features", "pendigits",
 #	"statlog-satimage", "statlog-shuttle", "synthetic-control-chart"]), 
 	#readdir(data_path))
@@ -26,3 +29,15 @@ filters = []
 f = ADME.correlation_grid_datasets(data_path, dataset_info; 
 	datasets=datasets, models=models,filters=filters)
 show()
+#construct the filename
+f = "agreggated_datasets"
+if filters != []
+	for _filter in filters
+		fstring = repr(alldf[_filter[1]]) * _filter[2]
+		f *= "_"*string(_filter[1])*-filter[2] 
+	end
+end
+f *= ".png"
+# save the figure
+savefig(joinpath(output_path, f))
+
