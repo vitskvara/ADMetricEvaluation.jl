@@ -27,7 +27,8 @@ end
 #metrics = [:iteration, :auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, 
 #			:vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1]
 function correlation_grid_plot(df::DataFrame, metrics::Array{Symbol,1}, 
-	models::Array{String,1}, sup_title::String; correlation::String="kendall")
+	models::Array{String,1}, sup_title::String; correlation::String="kendall",
+	plot_histograms=true)
 	Nm = length(metrics)
 	f = figure(figsize=(15,10))
 	global n = 0
@@ -45,10 +46,12 @@ function correlation_grid_plot(df::DataFrame, metrics::Array{Symbol,1},
 			#ax[:cla]()
 
 			if i == j
-				for model in models
-					mdf = filter(x->x[:model]==model, df)
-					PyPlot.plt[:hist](mdf[m1], 20, alpha = 1.0, label = model, density = true,
-						histtype = "step")
+				if plot_histograms
+					for model in models
+						mdf = filter(x->x[:model]==model, df)
+						PyPlot.plt[:hist](mdf[m1], 20, alpha = 1.0, label = model, density = true,
+							histtype = "step")
+					end
 				end
 				xlim(_xlim)
 				if i==j==1 legend() end
@@ -140,7 +143,7 @@ function single_dataset_corr_grid(dataset, isubd, data_path;
 	return correlation_grid_plot(merged_df, metrics, models, st)
 end
 
-function collect_all_data(data_path, aggreg_f = Statistics.mean; 
+function collect_all_data(data_path; aggreg_f = nothing,
 	metrics= [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, 
 			:vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1])
 	datasets = readdir(data_path)
@@ -148,7 +151,11 @@ function collect_all_data(data_path, aggreg_f = Statistics.mean;
 	for dataset in datasets
 		dfs = loaddata(dataset, data_path)
 		df = mergeds(dfs, vcat([:iteration], metrics)) 
-		push!(res, aggregate(df, [:dataset, :model], aggreg_f))
+		if aggreg_f == nothing
+			push!(res, df)
+		else
+			push!(res, aggregate(df, [:dataset, :model], aggreg_f))
+		end
 	end
 	return vcat(res...)
 end
@@ -161,6 +168,9 @@ function join_with_info(all_data::DataFrame, dataset_info::String)
 	return join(all_data, infodf, on=:dataset)
 end
 
+"""
+Plots scatter plots and correlation for data collected across all datasets.
+"""
 function correlation_grid_datasets(data_path::String, dataset_info::String; 
 	metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, :vol_at_5],
 	models = ["kNN", "IF", "LOF", "OCSVM"],
@@ -169,7 +179,7 @@ function correlation_grid_datasets(data_path::String, dataset_info::String;
 	filters = []
 	)
 	# first get the aggregated collection of all data
-	alldf = join_with_info(collect_all_data(data_path, aggreg_f; metrics = metrics), dataset_info)
+	alldf = join_with_info(collect_all_data(data_path; aggreg_f=aggreg_f, metrics = metrics), dataset_info)
 	# filter out only some datasets
 	if datasets != nothing
 		alldf = alldf[map(x->filter_string_by_beginnings(x,datasets),alldf[:dataset]),:]
@@ -177,7 +187,8 @@ function correlation_grid_datasets(data_path::String, dataset_info::String;
 	
 	# filter out the new metric names - after aggregation they are different
 	metrics = names(alldf)[map(x->filter_string_by_beginnings(x,string.(metrics)), string.(names(alldf)))]
-	
+	Nm = length(metrics)
+
 	# create the suptitle
 	st = ""
 
@@ -191,8 +202,10 @@ function correlation_grid_datasets(data_path::String, dataset_info::String;
 	end
 
 	# now call the plotting function
-	return correlation_grid_plot(alldf, metrics, models, st)
+	f = correlation_grid_plot(alldf, metrics, models, st)
+
 #	return alldf, metrics
+	return f
 end
 function scatter_grid_plot(df::DataFrame, metrics::Array{Symbol,1}, 
 	data_chars::Array{Symbol,1},
@@ -256,7 +269,7 @@ function scatter_grid_metrics_datachars(data_path::String, dataset_info::String;
 	filters = []
 	)
 	# first get the aggregated collection of all data
-	alldf = join_with_info(collect_all_data(data_path, aggreg_f; metrics = metrics), dataset_info)
+	alldf = join_with_info(collect_all_data_aggregated(data_path, aggreg_f; metrics = metrics), dataset_info)
 	# filter out only some datasets
 	if datasets != nothing
 		alldf = alldf[map(x->filter_string_by_beginnings(x,datasets),alldf[:dataset]),:]
