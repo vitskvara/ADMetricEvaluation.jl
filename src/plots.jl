@@ -269,7 +269,7 @@ function scatter_grid_metrics_datachars(data_path::String, dataset_info::String;
 	filters = []
 	)
 	# first get the aggregated collection of all data
-	alldf = join_with_info(collect_all_data_aggregated(data_path, aggreg_f; metrics = metrics), dataset_info)
+	alldf = join_with_info(collect_all_data(data_path; aggreg_f=aggreg_f, metrics = metrics), dataset_info)
 	# filter out only some datasets
 	if datasets != nothing
 		alldf = alldf[map(x->filter_string_by_beginnings(x,datasets),alldf[:dataset]),:]
