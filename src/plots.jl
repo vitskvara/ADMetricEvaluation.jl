@@ -9,6 +9,17 @@ mergesubd(names::Array{String,1}, df_list::Array{DataFrame,1}, metrics::Array{Sy
 	mergeds(filter(x->x[:dataset][1] in names,df_list), metrics)
 filter_string_by_beginning(x::String, master::String) = (length(x) < length(master)) ? false : (x[1:length(master)]==master)
 filter_string_by_beginnings(x::String, masters::Array{String,1}) = any(map(y->filter_string_by_beginning(x,y),masters))
+function load_all_by_model(data_path, model)
+	datasets = readdir(data_path)
+	dfs = []
+	for dataset in datasets
+		_dfs = loaddata(dataset, data_path)
+		_dfs = filter(x->x[:model][1]==model, _dfs)
+		push!(dfs, vcat(_dfs...))
+	end
+	dfs = filter(x->size(x,1)!=0, dfs)
+	alldf = vcat(dfs...)
+end
 function linear_fit(x,y)
 	# y = Xb, where X = [ones', x']'
 	s = size(x)

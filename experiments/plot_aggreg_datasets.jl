@@ -28,7 +28,6 @@ filters = []
 #filters=[(:n_clusters, ".<=2"), (:norm_vol, ".>0.8")]
 f = ADME.correlation_grid_datasets(data_path, dataset_info; 
 	datasets=datasets, models=models,filters=filters)
-show()
 #construct the filename
 f = "agreggated_datasets"
 if filters != []
@@ -40,4 +39,4 @@ end
 f *= ".png"
 # save the figure
 savefig(joinpath(output_path, f))
-
+show()
