@@ -51,11 +51,12 @@ if use_args
 	params = map(Meta.parse, params)
 else
 	# specify your own inputs
-	dataset = "three-rings-1"
+	dataset = "statlog-shuttle"
 	seed = 1
 	model = "kNN"
 	subclass = 1
 	params = [5, :gamma]
+	#params = [50]
 end
 
 # data acquisition
@@ -64,8 +65,10 @@ standardize = true
 if dataset in ["three-gaussians-1", "three-rings-1", "two-bananas", "two-moons",
     "two-rings-2", "three-gaussians-2", "three-rings-2", "two-gaussians", "two-rings-1"]
     data = UCI.get_synthetic_data(dataset)
+    nlabels=""
+    alabels=""
 else
-	data = UCI.get_umap_data(dataset, subclass)
+	data,nlabels,alabels = UCI.get_umap_data(dataset, subclass)
 end
 X_tr, y_tr, X_tst, y_tst = UCI.split_data(data, p; seed = seed, standardize=standardize)
 
@@ -103,28 +106,34 @@ df[:vol_at_5] = 1-EvalCurves.volume_at_fpr(threshold, bounds, score_fun, mc_volu
 print(df)
 
 # get data for contours
-gridsize = 10
+gridsize = 20
 plotbounds=bounds.*1.1
 _x = range(plotbounds[1][1], length=gridsize, stop=plotbounds[1][2])
 _y = range(plotbounds[2][1], length=gridsize, stop=plotbounds[2][2])
 _z = fill(0.0, gridsize, gridsize)
-_l = Int.((threshold .- _z).<1e-6)
 for i in 1:gridsize
 	for j in 1:gridsize
 		_z[j,i] = score_fun([_x[i], _y[j]])[1]
 	end
 end
+_l = Int.((threshold .- _z).<1e-6)
 
 # do the plots
 _cmap = "gray"
-_s = 10
+_s = 5
+_alpha = 0.5
 figure(figsize=(10,5))
 subplot(1,2,1)
-suptitle("$dataset, $model, $params\n
-	AUC=$(df[:auc]), AUCw=$(df[:auc_weighted]), AUC5=$(df[:auc_at_5]), PREC5=$(df[:prec_at_5]), TPR5=$(df[:tpr_at_5]), VOL5=$(df[:vol_at_5])")
+ds = dataset
+if nlabels!=""
+	ds*="-"*nlabels[1]*"-"*alabels[1]
+end
+suptitle("$ds, seed=$seed, $model, $params\n
+	AUC=$(round(df[:auc][1],digits=2)), AUCw=$(round(df[:auc_weighted][1],digits=2)), AUC5=$(round(df[:auc_at_5][1],digits=2)), PREC5=$(round(df[:prec_at_5][1],digits=2)), TPR5=$(round(df[:tpr_at_5][1],digits=2)), VOL5=$(round(df[:vol_at_5][1],digits=2))")
 
 contourf(_x,_y,_l,1,cmap=_cmap)
-scatter(X_tr[1,:], X_tr[2,:], label="training data", s=_s)
+colorbar()
+scatter(X_tr[1,:], X_tr[2,:], label="training data", s=_s, alpha=_alpha)
 xlim(plotbounds[1])
 ylim(plotbounds[2])
 title("training data + 0/1 volumes")
@@ -132,12 +141,13 @@ legend()
 
 subplot(1,2,2)
 contourf(_x,_y,_z,50,cmap=_cmap)
-scatter(X_tst[1,y_tst.==0], X_tst[2,y_tst.==0], label="negative", s=_s)
-scatter(X_tst[1,y_tst.==1], X_tst[2,y_tst.==1], label="positive", s=_s)
+colorbar()
+scatter(X_tst[1,y_tst.==0], X_tst[2,y_tst.==0], label="negative", s=_s, alpha=_alpha)
+scatter(X_tst[1,y_tst.==1], X_tst[2,y_tst.==1], label="positive", s=_s, alpha=_alpha)
 xlim(plotbounds[1])
 ylim(plotbounds[2])
 title("testing data + anomaly score contours")
 legend()
-tight_layout()
+tight_layout(rect=[0,0.03,1,0.85])
 
 show()
