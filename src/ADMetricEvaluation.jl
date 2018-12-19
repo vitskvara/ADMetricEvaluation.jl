@@ -1,7 +1,6 @@
 module ADMetricEvaluation
 
 using CSV
-using EvalCurves
 using ScikitLearn
 using DelimitedFiles
 using Random
@@ -10,10 +9,12 @@ using DataFrames
 using Statistics
 using ProgressMeter
 using UCI
+using EvalCurves
 using Clustering
 using Distances
 using PyPlot
 using Printf
+using MultiObjective
 
 const Float = Float32
 

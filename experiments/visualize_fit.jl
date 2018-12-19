@@ -5,7 +5,6 @@ using ADMetricEvaluation
 using DataFrames
 using PyPlot
 include("models.jl")
-use_args = false
 
 function _parse_args()
 	# argument parsing
@@ -22,6 +21,10 @@ function _parse_args()
 	    	help = "parameter settings of a model"
 	    	nargs = '*'
 	    	required = true
+	    "--fpr"
+	    	help = "false positive rate"
+	    	default = 0.05
+	    	arg_type = Float64
 	    "--seed"
 	    	help = "data split seed"
 	    	default = 1
@@ -33,7 +36,7 @@ function _parse_args()
 	parsed_args = parse_args(s) # the result is a Dict{String,Any}
 end
 
-if use_args
+if basename(@__FILE__) == basename(PROGRAM_FILE)
 	parsed_args = _parse_args()
 	dataset = parsed_args["dataset"]
 	seed = parsed_args["seed"]
@@ -49,12 +52,14 @@ if use_args
 	end
 	params = parsed_args["params"]
 	params = map(Meta.parse, params)
+	fpr = parsed_args["fpr"]
 else
 	# specify your own inputs
-	dataset = "statlog-shuttle"
+	dataset = "two-rings-1"
 	seed = 1
 	model = "kNN"
 	subclass = 1
+	fpr = 0.05
 	params = [5, :gamma]
 	#params = [50]
 end
@@ -90,18 +95,17 @@ fprvec, tprvec = EvalCurves.roccurve(scores, y_tst)
 df = DataFrame() # auc, weighted auc, auc@5, auc@1, precision@k, tpr@fpr, vol@fpr
 df[:auc] = EvalCurves.auc(fprvec, tprvec)
 df[:auc_weighted] = EvalCurves.auc(fprvec, tprvec, "1/x")
-df[:auc_at_5] = EvalCurves.auc_at_p(fprvec,tprvec,0.05; normalize = true)
-df[:prec_at_5] = ADMetricEvaluation.precision_at_p(score_fun, X_tst, y_tst, 0.05)
-df[:tpr_at_5] = EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.05)
+df[:auc_at] = EvalCurves.auc_at_p(fprvec,tprvec,fpr; normalize = true)
+df[:prec_at] = ADMetricEvaluation.precision_at_p(score_fun, X_tst, y_tst, fpr)
+df[:tpr_at] = EvalCurves.tpr_at_fpr(fprvec, tprvec, fpr)
 # now get the threshold and volume
 X = hcat(X_tr, X_tst)
 bounds = EvalCurves.estimate_bounds(X)
-fpr = 0.05
 mc_volume_iters = 1000
 mc_volume_repeats = 1
 threshold = EvalCurves.threshold_at_fpr(scores, y_tst, fpr; warn = false)
 df[:threshold] = threshold
-df[:vol_at_5] = 1-EvalCurves.volume_at_fpr(threshold, bounds, score_fun, mc_volume_iters)
+df[:vol_at] = 1-EvalCurves.volume_at_fpr(threshold, bounds, score_fun, mc_volume_iters)
 
 print(df)
 
@@ -125,28 +129,28 @@ _alpha = 0.5
 figure(figsize=(10,5))
 subplot(1,2,1)
 ds = dataset
-if nlabels!=""
+if nlabels!="" && nlabels!=nothing
 	ds*="-"*nlabels[1]*"-"*alabels[1]
 end
-suptitle("$ds, seed=$seed, $model, $params\n
-	AUC=$(round(df[:auc][1],digits=2)), AUCw=$(round(df[:auc_weighted][1],digits=2)), AUC5=$(round(df[:auc_at_5][1],digits=2)), PREC5=$(round(df[:prec_at_5][1],digits=2)), TPR5=$(round(df[:tpr_at_5][1],digits=2)), VOL5=$(round(df[:vol_at_5][1],digits=2))")
+suptitle("$ds, seed=$seed, $model, $params, fpr=$fpr\n
+	AUC=$(round(df[:auc][1],digits=2)), AUCw=$(round(df[:auc_weighted][1],digits=2)), AUC@=$(round(df[:auc_at][1],digits=2)), PREC@=$(round(df[:prec_at][1],digits=2)), TPR@=$(round(df[:tpr_at][1],digits=2)), VOL@=$(round(df[:vol_at][1],digits=2))")
 
-contourf(_x,_y,_l,1,cmap=_cmap)
+contourf(_x,_y,_z,50,cmap=_cmap)
 colorbar()
 scatter(X_tr[1,:], X_tr[2,:], label="training data", s=_s, alpha=_alpha)
 xlim(plotbounds[1])
 ylim(plotbounds[2])
-title("training data + 0/1 volumes")
+title("training data + anomaly score contours")
 legend()
 
 subplot(1,2,2)
-contourf(_x,_y,_z,50,cmap=_cmap)
+contourf(_x,_y,_l,1,cmap=_cmap)
 colorbar()
 scatter(X_tst[1,y_tst.==0], X_tst[2,y_tst.==0], label="negative", s=_s, alpha=_alpha)
 scatter(X_tst[1,y_tst.==1], X_tst[2,y_tst.==1], label="positive", s=_s, alpha=_alpha)
 xlim(plotbounds[1])
 ylim(plotbounds[2])
-title("testing data + anomaly score contours")
+title("testing data + 0/1 volumes, threshold=$(round(df[:threshold][1],digits=3))")
 legend()
 tight_layout(rect=[0,0.03,1,0.85])
 
