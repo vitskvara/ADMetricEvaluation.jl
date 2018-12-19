@@ -13,8 +13,10 @@ function precision_at_p(score_fun, X, y, p::Real; seed = nothing, verb = false)
 	# this is the number of sampled anomalies so that in the resulting subsampled dataset 
 	# the ratio anomalous/(normal + anomalous) = p
 	k = Int(floor(N*p/(1-p)))
-	if k > N_a && verb
-		@warn "Not enough anomalies to sample from"
+	if k > N_a
+		if verb
+			@warn "Not enough anomalies to sample from"
+		end
 		return NaN
 	end
 	inds_sampled = StatsBase.sample(1:N_a, k, replace = false)
