@@ -4,7 +4,7 @@
 Compute precision at p% most anomalous samples. Subsample anomalies so 
 that the ratio anomalous/all = p.
 """
-function precision_at_p(score_fun, X, y, p::Real; seed = nothing)
+function precision_at_p(score_fun, X, y, p::Real; seed = nothing, verb = false)
 	N_a = sum(y)
 	N_n = length(y) - N_a
 	N = size(X,2)
@@ -13,7 +13,7 @@ function precision_at_p(score_fun, X, y, p::Real; seed = nothing)
 	# this is the number of sampled anomalies so that in the resulting subsampled dataset 
 	# the ratio anomalous/(normal + anomalous) = p
 	k = Int(floor(N*p/(1-p)))
-	if k > N_a
+	if k > N_a && verb
 		@warn "Not enough anomalies to sample from"
 		return NaN
 	end
