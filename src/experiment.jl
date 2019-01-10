@@ -97,9 +97,9 @@ function experiment_nfold(model, parameters, param_names, data::UCI.ADDataset;
 		X_tr, y_tr, X_tst, y_tst = UCI.split_data(data, p, contamination; seed = iexp, standardize=standardize)
 		res = experiment(model, parameters, X_tr, y_tr, X_tst, y_tst; exp_kwargs...)
 		for (par_name, par_val) in zip(param_names, parameters)
-			insert!(res, 1, par_val, par_name) # append the column to the beginning of the df
+			insertcols!(res, 1, par_name=>par_val) # append the column to the beginning of the df
 		end
-		insert!(res, 1, iexp, :iteration)
+		insertcols!(res, 1, :iteration=>iexp)
 		# also, compute clusterdness
 		#res[:clusterdness] = clusterdness(hcat(X_tr, X_tst), vcat(y_tr, y_tst))
 		push!(results, res) # res is a dataframe 
@@ -119,8 +119,8 @@ If savepath is specified, saves the result in the given path.
 function run_experiment(model, model_name, param_vals, param_names, data::UCI.ADDataset, dataset_name;
 	save_path = "", exp_nfold_kwargs...)
     res = gridsearch(x -> experiment_nfold(model, x, param_names, data; exp_nfold_kwargs...), param_vals...)
-    insert!(res, 1, model_name, :model)
-    insert!(res, 1, dataset_name, :dataset)
+    insertcols!(res, 1, :model=>model_name)
+    insertcols!(res, 1, :dataset=>dataset_name)
     if save_path != ""
     	CSV.write(joinpath(save_path, "$(dataset_name)_$(model_name).csv"), res)
     end
@@ -262,8 +262,8 @@ function umap_dataset_chars(output_path; umap_data_path="", p=0.8, nexp=10, stan
 				X_tr, y_tr, X_tst, y_tst = UCI.split_data(data, p; seed = iexp, 
 					standardize=standardize)
 				line = dataset_chars(X_tr, y_tr, X_tst, y_tst)
-				insert!(line, 1, iexp, :iteration)
-				insert!(line, 1, dataset_label, :dataset)
+				insertcols!(line, 1, :iteration=>iexp)
+				insertcols!(line, 1, :dataset=>dataset_label)
 				push!(results, line)
 			end
 		end
