@@ -7,9 +7,9 @@ include("models.jl")
 host = gethostname()
 #master path where data will be stored
 if host == "vit"
-	outpath = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data_contaminated"
+	outpath = "out"
 elseif host == "axolotl.utia.cas.cz"
-	outpath = "/home/skvara/work/anomaly_detection/data/metric_evaluation/umap_data_contaminated"
+	outpath = "/home/skvara/work/anomaly_detection/data/metric_evaluation/umap_data"
 end
 
 mkpath(outpath)
@@ -33,5 +33,5 @@ param_struct = [
 			 ]
 
 @time res = ADME.run_umap_experiment(dataset, models, model_names, param_struct, outpath;
-	n_experiments = n_experiments, p = p, contamination=0.05, mc_volume_iters = mc_volume_iters, 
-	mc_volume_repeats = mc_volume_repeats, standardize=true)
+	n_experiments = n_experiments, p = p, mc_volume_iters = mc_volume_iters, 
+	mc_volume_repeats = mc_volume_repeats, standardize=false)
