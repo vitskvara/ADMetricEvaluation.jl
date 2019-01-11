@@ -142,6 +142,8 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[MultiObjective]]
 uuid = "53bec06c-fec0-11e8-3c17-67bdb2c4b764"
+url = "https://github.com/vitskvara/MultiObjective.jl.git"
+version = "0.1.0"
 
 [[NearestNeighbors]]
 deps = ["Distances", "LinearAlgebra", "Mmap", "StaticArrays", "Test"]
