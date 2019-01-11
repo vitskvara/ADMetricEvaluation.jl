@@ -292,6 +292,8 @@ version = "0.8.1"
 
 [[UCI]] 
 uuid = "a83054f2-ddd1-11e8-0102-5779cc6302e5"
+url = "https://github.com/vitskvara/UCI.jl.git"
+version="0.1.0"
 
 [[UUIDs]]
 deps = ["Random"]
