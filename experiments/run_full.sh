@@ -1,0 +1,9 @@
+julia run_experiment.jl blood-transfusion
+julia run_experiment.jl breast-cancer-wisconsin
+julia run_experiment.jl ionosphere
+julia run_experiment.jl sonar
+julia run_experiment.jl ecoli
+julia run_experiment.jl iris
+julia run_experiment.jl waveform-1
+julia run_experiment.jl wine
+julia run_experiment.jl isolet

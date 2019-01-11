@@ -128,15 +128,15 @@ function run_experiment(model, model_name, param_vals, param_names, data::UCI.AD
 end
 
 """
-	function run_umap_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
-	umap_data_path = "", exp_kwargs...)
+	run_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
+	data_path = "", exp_kwargs...)
 
-Runs the experiment for UMAP data given a dataset name.
+Runs the experiment for a given dataset.
 """
-function run_umap_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
-	umap_data_path = "", exp_kwargs...)
+function run_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
+	data_path = "", exp_kwargs...)
 	# load data
-	raw_data = UCI.get_umap_data(dataset_name, path=umap_data_path)
+	raw_data = UCI.get_data(dataset_name, path=data_path)
 	multiclass_data = UCI.create_multiclass(raw_data...)
 	# setup path
 	save_path = joinpath(master_save_path, dataset_name)
@@ -158,15 +158,25 @@ function run_umap_experiment(dataset_name, model_list, model_names, param_struct
 end
 
 """
+	function run_umap_experiment(dataset_name, model_list, model_names, param_struct, 
+	master_save_path;e xp_kwargs...)
+
+Runs the experiment for UMAP data given a dataset name.
+"""
+run_umap_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
+	exp_kwargs...) = run_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
+	data_path = UCI.get_umap_datapath(), exp_kwargs...)
+
+"""
 	function run_synthetic_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
-	umap_data_path = "", exp_kwargs...)
+	data_path = "", exp_kwargs...)
 
 Runs the experiment for UMAP data given a dataset name.
 """
 function run_synthetic_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
-	data_path = "", exp_kwargs...)
+	exp_kwargs...)
 	# load data
-	data = UCI.get_synthetic_data(dataset_name, path=data_path)
+	data = UCI.get_synthetic_data(dataset_name)
 	# setup path
 	save_path = joinpath(master_save_path, dataset_name)
 	mkpath(save_path)
@@ -272,17 +282,4 @@ function umap_dataset_chars(output_path; umap_data_path="", p=0.8, nexp=10, stan
 	df = vcat(results...)
 	CSV.write(joinpath(output_path, "dataset_overview.csv"), df)
 	return df 	
-end
-
-"""
-	umap_data(dataset, i; standardize=false)
-
-Get X and y given a dataset name and subdataset index.
-"""
-function umap_data(dataset, i; standardize=false)
-	data = UCI.get_umap_data(dataset)
-	multidata = UCI.create_multiclass(data...)
-	i = min(i, length(multidata))
-	X_tr, y_tr, X_tst, y_tst = UCI.split_data(multidata[i][1]; standardize=standardize)
-	return hcat(X_tr, X_tst), vcat(y_tr, y_tst)
 end
