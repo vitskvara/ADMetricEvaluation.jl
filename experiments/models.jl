@@ -1,5 +1,7 @@
 using ScikitLearn
-using kNN
+using StatsBase
+using ADMetricEvaluation
+
 
 @sk_import svm : OneClassSVM
 @sk_import ensemble : IsolationForest
@@ -13,11 +15,11 @@ mutable struct kNN_model
 	k::Int
 	m::Symbol
 	t::Symbol
-	knn::kNN.KNNAnomaly
+	knn::ADMetricEvaluation.KNNAnomaly
 end
 
 kNN_model(k::Int, metric::Symbol) = 
-	kNN_model(k, metric, :KDTree, kNN.KNNAnomaly(Array{Float32,2}(undef,1,0), metric, :KDTree))
+	kNN_model(k, metric, :KDTree, ADMetricEvaluation.KNNAnomaly(Array{Float32,2}(undef,1,0), metric, :KDTree))
 # create a sklearn-like fit function
-ScikitLearn.fit!(knnm::kNN_model, X) = (knnm.knn = kNN.KNNAnomaly(Array(transpose(X)), knnm.m, knnm.t)) 
-ScikitLearn.decision_function(knnm::kNN_model, X) = -kNN.predict(knnm.knn, Array(transpose(X)), knnm.k)
+ScikitLearn.fit!(knnm::kNN_model, X) = (knnm.knn = ADMetricEvaluation.KNNAnomaly(Array(transpose(X)), knnm.m, knnm.t)) 
+ScikitLearn.decision_function(knnm::kNN_model, X) = -StatsBase.predict(knnm.knn, Array(transpose(X)), knnm.k)

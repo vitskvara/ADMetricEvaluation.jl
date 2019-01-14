@@ -15,10 +15,13 @@ using Distances
 using PyPlot
 using Printf
 using MultiObjective
+using NearestNeighbors
+using LinearAlgebra
 
 const Float = Float32
 
 include("experiment.jl")
 include("plots.jl")
+include("kNN.jl")
 
 end # module
