@@ -60,13 +60,18 @@ function correlation_grid_plot(df::DataFrame, metrics::Array{Symbol,1},
 				if plot_histograms
 					for model in models
 						mdf = filter(x->x[:model]==model, df)
-						PyPlot.plt[:hist](mdf[m1], 20, alpha = 1.0, label = model, density = true,
-							histtype = "step")
+						# check for nans
+						x = mdf[m1]
+						x = x[.!isnan.(x)]
+						if length(x) > 0
+							PyPlot.plt[:hist](x, 20, alpha = 1.0, label = model, density = true,
+								histtype = "step")
+						end
 					end
 				end
 				xlim(_xlim)
 				if i==j==1 legend() end
-			elseif j>i
+			elseif j>i || j<i
 				_x = []
 				_y = []
 				for model in models
@@ -75,20 +80,29 @@ function correlation_grid_plot(df::DataFrame, metrics::Array{Symbol,1},
 					push!(_x, mdf[m1])
 					push!(_y, mdf[m2])
 				end
-				# add the fit line
-				try
-					plot_linear_fit(vcat(_x...), vcat(_y...))
-				catch
-					nothing
-				end
 				# add the correlation coefficient
 				r = NaN
 				_leg = ""
+				x=vcat(_x...)
+				y=vcat(_y...)
+				is=.!(isnan.(x) .| isnan.(y))
+				x=x[is]
+				y=y[is]
+				# add the fit line
+				try
+					plot_linear_fit(x, y)
+				catch
+					nothing
+				end
 				if correlation == "kendall"
-					r = round(StatsBase.corkendall(vcat(_x...), vcat(_y...)),digits=2)
+					if length(x)>0
+						r = round(StatsBase.corkendall(x, y),digits=2)
+					end
 					_leg = "τ=$r"
 				elseif correlation == "pearson"
-					r = round(Statistics.cor(vcat(_x...), vcat(_y...)),digits=2)
+					if length(x)>0
+						r = round(Statistics.cor(x, y),digits=2)
+					end
 					_leg = "R=$r"
 				end
 				_line = plt[:Line2D]([1], [1],color="w")

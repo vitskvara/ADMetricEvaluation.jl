@@ -2,7 +2,8 @@ using DataFrames
 using ADMetricEvaluation
 using Statistics
 
-data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
+#data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
+data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data_contaminated"
 pareto_optimal = false
 
 datasets = readdir(data_path)

@@ -14,16 +14,16 @@ mkpath(outpath)
 dataset = ARGS[1]
 
 # settings
-n_experiments = 10
+n_experiments = 1
 p = 0.8
-mc_volume_iters = 10000
+mc_volume_iters = 10
 mc_volume_repeats = 10
 
 # models
 models = [kNN_model]
 model_names = ["kNN"]
 param_struct = [
-				([[1, 3, 5, 7, 9], [:gamma, :kappa, :delta]], [:k,:metric])
+				([[9], [:delta]], [:k,:metric])
 			 ]
 
 #@time res = ADME.run_experiment(dataset, models, model_names, param_struct, outpath;

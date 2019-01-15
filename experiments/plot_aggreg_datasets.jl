@@ -3,14 +3,15 @@ import ADMetricEvaluation
 ADME = ADMetricEvaluation
 host = gethostname()
 #master path where data will be stored
+data_type = "umap_data_contaminated"
 if host == "vit"
-	data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
+	data_path = joinpath("/home/vit/vyzkum/anomaly_detection/data/metric_evaluation", data_type)
 	dataset_info = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/dataset_overview.csv"
-	output_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/aggregated_plots"
+	output_path = joinpath("/home/vit/vyzkum/anomaly_detection/data/metric_evaluation", data_type*"_aggregated_plots")
 elseif host == "axolotl.utia.cas.cz"
-	data_path = "/home/skvara/work/anomaly_detection/data/metric_evaluation/umap_data"
+	data_path = joinpath("/home/skvara/work/anomaly_detection/data/metric_evaluation", data_type)
 	dataset_info = "/home/skvara/work/anomaly_detection/data/metric_evaluation/dataset_overview.csv"
-	output_path = "/home/skvara/work/anomaly_detection/data/metric_evaluation/aggregated_plots"
+	output_path = joinpath("/home/skvara/work/anomaly_detection/data/metric_evaluation", data_type*"_aggregated_plots")
 end
 mkpath(output_path)
 #datasets = filter(x->!(x in ["ecoli", "iris", "isolet", "multiple-features", "pendigits",

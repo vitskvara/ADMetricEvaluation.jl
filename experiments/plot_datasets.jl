@@ -2,13 +2,14 @@ using ADMetricEvaluation
 using PyPlot
 
 host = gethostname()
+data_type = "umap_data_contaminated"
 if host == "vit"
-	data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
+	data_path = joinpath("/home/vit/vyzkum/anomaly_detection/data/metric_evaluation", data_type)
 	dataset_info = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/dataset_overview.csv"
-	outpath = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_dataset_plots"
+	outpath = joinpath("/home/vit/vyzkum/anomaly_detection/data/metric_evaluation", data_type*"_plots")
 elseif host == "axolotl.utia.cas.cz"
-	data_path = "/home/skvara/work/anomaly_detection/data/metric_evaluation/umap_data"
-	outpath = "/home/skvara/work/anomaly_detection/data/metric_evaluation/umap_dataset_plots"
+	data_path = joinpath("/home/skvara/work/anomaly_detection/data/metric_evaluation", data_type)
+	outpath = joinpath("/home/skvara/work/anomaly_detection/data/metric_evaluation", data_type*"_plots")
 	dataset_info = "/home/skvara/work/anomaly_detection/data/metric_evaluation/dataset_overview.csv"
 end
 

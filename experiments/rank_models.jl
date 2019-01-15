@@ -3,7 +3,8 @@ using Statistics
 using PyPlot
 using DataFrames
 
-data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
+#data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
+data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data_contaminated"
 
 rankdf, alldf = ADMetricEvaluation.rank_models(data_path)
 
