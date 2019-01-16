@@ -1,0 +1,9 @@
+julia ../run_synthetic_experiment.jl two-moons
+julia ../run_synthetic_experiment.jl two-bananas
+julia ../run_synthetic_experiment.jl two-gaussians
+julia ../run_synthetic_experiment.jl two-rings-1
+julia ../run_synthetic_experiment.jl two-rings-2
+julia ../run_synthetic_experiment.jl three-gaussians-1
+julia ../run_synthetic_experiment.jl three-gaussians-2
+julia ../run_synthetic_experiment.jl three-rings-1
+julia ../run_synthetic_experiment.jl three-rings-2

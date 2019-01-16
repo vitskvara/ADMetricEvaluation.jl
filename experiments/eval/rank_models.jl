@@ -3,39 +3,16 @@ using Statistics
 using PyPlot
 using DataFrames
 
-#data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
-data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data_contaminated"
 
+#data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
+#data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data_contaminated"
+data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_data_contaminated"
 
 metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1,
 :tpr_at_1, :vol_at_1]
 
-rankdf, alldf = ADMetricEvaluation.rank_models(data_path, metrics = metrics)
-
-Nm = length(metrics)
-
-ranks_mean = DataFrame(:metric=>String[],:kNN=>Float64[], :LOF=>Float64[], :IF=>Float64[], :OCSVM=>Float64[])
-ranks_sd = DataFrame(:metric=>String[],:kNN=>Float64[], :LOF=>Float64[], :IF=>Float64[], :OCSVM=>Float64[])
-figure(figsize=(10,5))
-global ind = 1
-for metric in (map(x->Symbol(string(x)*"_mean_maximum"), metrics))
-	subplot(1,Nm,ind)
-	mus = []
-	sds = []
-	for model in [:kNN, :LOF, :IF, :OCSVM]
-		x = rankdf[model][rankdf[:metric].==metric]
-		mu=Statistics.mean(x)
-		std=Statistics.std(x)
-		push!(mus, mu)
-		push!(sds, std)
-		plt[:hist](x, 20, label=string(model), alpha=1, histtype="step")
-	end
-	push!(ranks_mean, vcat([string(metric)], mus))
-	push!(ranks_sd, vcat([string(metric)], sds))
-	legend()
-	xlabel(metric)
-	global ind+=1
-end
+rankdf, alldf = ADMetricEvaluation.rank_models(data_path, metrics=metrics)
+ranks_mean, ranks_sd = ADMetricEvaluation.model_ranks_stats(data_path, metrics)
 show()
 println("RANK MEANS")
 println(ranks_mean)

@@ -4,7 +4,7 @@ using EvalCurves
 using ADMetricEvaluation
 using DataFrames
 using PyPlot
-include("models.jl")
+include("../models.jl")
 
 function _parse_args()
 	# argument parsing

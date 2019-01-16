@@ -23,5 +23,6 @@ const Float = Float32
 include("experiment.jl")
 include("plots.jl")
 include("kNN.jl")
+include("eval.jl")
 
 end # module
