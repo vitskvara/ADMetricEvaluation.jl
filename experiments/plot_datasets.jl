@@ -2,7 +2,8 @@ using ADMetricEvaluation
 using PyPlot
 
 host = gethostname()
-data_type = "umap_data_contaminated"
+#data_type = "umap_data_contaminated"
+data_type = "full_data_contaminated"
 if host == "vit"
 	data_path = joinpath("/home/vit/vyzkum/anomaly_detection/data/metric_evaluation", data_type)
 	dataset_info = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/dataset_overview.csv"

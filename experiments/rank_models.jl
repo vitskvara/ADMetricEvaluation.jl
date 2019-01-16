@@ -6,9 +6,11 @@ using DataFrames
 #data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
 data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data_contaminated"
 
-rankdf, alldf = ADMetricEvaluation.rank_models(data_path)
 
-metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, :vol_at_5]
+metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1,
+:tpr_at_1, :vol_at_1]
+
+rankdf, alldf = ADMetricEvaluation.rank_models(data_path, metrics = metrics)
 
 Nm = length(metrics)
 

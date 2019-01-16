@@ -51,37 +51,50 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 	mc_volume_iters::Int = 100000, mc_volume_repeats::Int = 10)
 	# create and fit the model and produce anomaly scores
 	m = model(parameters...)
-	ScikitLearn.fit!(m, Array(transpose(X_train)))
-	score_fun(X) = -ScikitLearn.decision_function(m, Array(transpose(X))) 
-	scores = score_fun(X_test)
+	try
+		ScikitLearn.fit!(m, Array(transpose(X_train)))
+		score_fun(X) = -ScikitLearn.decision_function(m, Array(transpose(X))) 
+		scores = score_fun(X_test)
 
-	# now compute the needed metrics
-	# auc-based
-	metric_vals = DataFrame() # auc, weighted auc, auc@5, auc@1, precision@k, tpr@fpr, vol@fpr
-	fprvec, tprvec = EvalCurves.roccurve(scores, y_test)
-	metric_vals[:auc] = EvalCurves.auc(fprvec, tprvec)
-	metric_vals[:auc_weighted] = EvalCurves.auc(fprvec, tprvec, "1/x")
-	metric_vals[:auc_at_5] = EvalCurves.auc_at_p(fprvec,tprvec,0.05; normalize = true)
-	metric_vals[:auc_at_1] = EvalCurves.auc_at_p(fprvec,tprvec,0.01; normalize = true)
-	
-	# instead of precision@k we will compute precision@p
-	metric_vals[:prec_at_5] = precision_at_p(score_fun, X_test, y_test, 0.05)
-	metric_vals[:prec_at_1] = precision_at_p(score_fun, X_test, y_test, 0.01)
-
-	# tpr@fpr
-	metric_vals[:tpr_at_5] = EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.05)
-	metric_vals[:tpr_at_1] = EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.01)
-	
-	# volume of the anomalous samples
-	X = hcat(X_train, X_test)
-	bounds = EvalCurves.estimate_bounds(X)
-	for (fpr, label) in [(0.05, :vol_at_5), (0.01, :vol_at_1)]
-		threshold = EvalCurves.threshold_at_fpr(scores, y_test, fpr; warn = false)
-		vf() = EvalCurves.volume_at_fpr(threshold, bounds, score_fun, mc_volume_iters)
+		# now compute the needed metrics
+		# auc-based
+		metric_vals = DataFrame() # auc, weighted auc, auc@5, auc@1, precision@k, tpr@fpr, vol@fpr
+		fprvec, tprvec = EvalCurves.roccurve(scores, y_test)
+		metric_vals[:auc] = EvalCurves.auc(fprvec, tprvec)
+		metric_vals[:auc_weighted] = EvalCurves.auc(fprvec, tprvec, "1/x")
+		metric_vals[:auc_at_5] = EvalCurves.auc_at_p(fprvec,tprvec,0.05; normalize = true)
+		metric_vals[:auc_at_1] = EvalCurves.auc_at_p(fprvec,tprvec,0.01; normalize = true)
 		
-		metric_vals[label] = 1-EvalCurves.mc_volume_estimate(vf, mc_volume_repeats)
-	end	
-	return metric_vals
+		# instead of precision@k we will compute precision@p
+		metric_vals[:prec_at_5] = precision_at_p(score_fun, X_test, y_test, 0.05)
+		metric_vals[:prec_at_1] = precision_at_p(score_fun, X_test, y_test, 0.01)
+
+		# tpr@fpr
+		metric_vals[:tpr_at_5] = EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.05)
+		metric_vals[:tpr_at_1] = EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.01)
+		
+		# volume of the anomalous samples
+		X = hcat(X_train, X_test)
+		bounds = EvalCurves.estimate_bounds(X)
+		for (fpr, label) in [(0.05, :vol_at_5), (0.01, :vol_at_1)]
+			threshold = EvalCurves.threshold_at_fpr(scores, y_test, fpr; warn = false)
+			vf() = EvalCurves.volume_at_fpr(threshold, bounds, score_fun, mc_volume_iters)
+			
+			metric_vals[label] = 1-EvalCurves.mc_volume_estimate(vf, mc_volume_repeats)
+		end	
+		return metric_vals
+	catch e
+		if isa(e, ArgumentError)
+			println("Error in fit or predict:")
+			println(e)
+			println("")
+		else
+			throw(e)
+		end
+		return DataFrame(:auc=>NaN, :auc_weighted=>NaN, :auc_at_5=>NaN, 
+			:auc_at_1=>NaN, :prec_at_5=>NaN, :prec_at_1=>NaN, :tpr_at_5=>NaN,
+			:tpr_at_1=>NaN, :vol_at_5=>NaN, :vol_at_1=>NaN)
+	end
 end
 
 """

@@ -26,7 +26,8 @@ for name in names(alldf)
 	new_name = Symbol(split(string(name), "_mean")[1])
 	rename!(alldf, name => new_name	)
 end
-metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, :vol_at_5]
+metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1,
+:tpr_at_1, :vol_at_1]
 # now create a list of dataframes that contain rows from the alldf
 # where a given measure is maximum and the rest is left as is
 function collect_rows(alldf, metric, metrics)
