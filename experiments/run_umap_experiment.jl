@@ -11,7 +11,7 @@ if host == "vit"
 elseif host == "axolotl.utia.cas.cz"
 	outpath = "/home/skvara/work/anomaly_detection/data/metric_evaluation/umap_data_contaminated"
 elseif host == "soroban-node-03"
-	outpath = "compass/home/skvara/anomaly_detection/data/metric_evaluation/umap_data_contaminated"
+	outpath = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/umap_data_contaminated"
 end
 
 mkpath(outpath)
