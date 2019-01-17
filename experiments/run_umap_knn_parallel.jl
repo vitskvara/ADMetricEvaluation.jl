@@ -22,11 +22,11 @@ using UCI
 	host = gethostname()
 	#master path where data will be stored
 	if host == "vit"
-		outpath = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/data_contaminated"
+		outpath = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data_contaminated"
 	elseif host == "axolotl.utia.cas.cz"
-		outpath = "/home/skvara/work/anomaly_detection/data/metric_evaluation/full_data_contaminated"
+		outpath = "/home/skvara/work/anomaly_detection/data/metric_evaluation/umap_data_contaminated"
 	elseif host == "soroban-node-03"
-		outpath = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/full_data_contaminated"
+		outpath = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/umap_data_contaminated"
 	end
 
 	mkpath(outpath)
