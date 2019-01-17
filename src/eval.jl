@@ -294,3 +294,41 @@ function sensitivity_df(data_path, dataset, measure)
 	end
 	return sensdf
 end
+
+
+function measures_correlations(data_path::String, dataset_info::String; 
+	metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, :vol_at_5],
+	models = ["kNN", "IF", "LOF", "OCSVM"],
+	datasets = nothing,
+	aggreg_f = Statistics.mean,
+	filters = []
+	)
+	# first get the aggregated collection of all data
+	alldf = join_with_info(collect_all_data(data_path; aggreg_f=aggreg_f, metrics = metrics), dataset_info)
+	# filter out only some datasets
+	if datasets != nothing
+		alldf = alldf[map(x->filter_string_by_beginnings(x,datasets),alldf[:dataset]),:]
+	end
+	
+	# filter out the new metric names - after aggregation they are different
+	metrics = names(alldf)[map(x->filter_string_by_beginnings(x,string.(metrics)), string.(names(alldf)))]
+	Nm = length(metrics)
+
+	# create the suptitle
+	st = ""
+
+	# filter out by some columns
+	if filters != []
+		for _filter in filters
+			fstring = repr(alldf[_filter[1]]) * _filter[2]
+			alldf = alldf[eval(Meta.parse(fstring)),:]
+			st *= string(_filter[1])*_filter[2]*"  " 
+		end
+	end
+
+	# now call the plotting function
+	f = correlation_grid_plot(alldf, metrics, models, st)
+
+#	return alldf, metrics
+	return f
+end
