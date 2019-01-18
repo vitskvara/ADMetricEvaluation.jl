@@ -55,6 +55,6 @@ using UCI
 	end
 end
 
-datasets = filter!(x->!(x in ["gisette"]), readdir(UCI.get_processed_datapath()))
+datasets = filter!(x->!(x in []), readdir(UCI.get_raw_datapath()))
 
 pmap(run_experiment, datasets)

@@ -21,14 +21,8 @@ using UCI
 
 	host = gethostname()
 	#master path where data will be stored
-	if host == "vit"
-		outpath = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/data_contaminated"
-	elseif host == "axolotl.utia.cas.cz"
-		outpath = "/home/skvara/work/anomaly_detection/data/metric_evaluation/full_data_contaminated"
-	elseif host == "soroban-node-03"
-		outpath = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/full_data_contaminated"
-	end
-
+	outpath = "parallel_test"
+	
 	mkpath(outpath)
 
 	datasets = ""
@@ -36,27 +30,26 @@ using UCI
 	# settings
 	n_experiments = 10
 	p = 0.8
-	mc_volume_iters = 10000
-	mc_volume_repeats = 10
+	mc_volume_iters = 10
+	mc_volume_repeats = 1
 
 	# models
 	models = [kNN_model]
 	model_names = ["kNN"]
 
 	param_struct = [
-					([[1, 3, 5, 7, 9, 13, 21, 31, 51], [:gamma, :kappa, :delta]], [:k,:metric]),
+					([[1, 3], [:gamma, :kappa]], [:k,:metric]),
 				 ]
 
 	function run_experiment(dataset)
-		@time res = ADMetricEvaluation.run_experiment(dataset, models, model_names, param_struct, outpath;
+		@time res = ADMetricEvaluation.run_umap_experiment(dataset, models, model_names, param_struct, outpath;
 			n_experiments = n_experiments, p = p, contamination=0.05, mc_volume_iters = mc_volume_iters, 
 			mc_volume_repeats = mc_volume_repeats, standardize=true)
 		println("$dataset finished!")
 	end
 end
 
-datasets = filter!(x->!(x in ["gisette", "isolet",
-	"magic-telescope", "miniboone", "multiple-features",
-	"statlog-shuttle"]), readdir(UCI.get_raw_datapath()))
+datasets = filter!(x->!(x in []), readdir(UCI.get_raw_datapath()))
+#datasets = ["abalone", "iris", "statlog-vehicle"]
 
 pmap(run_experiment, datasets)
