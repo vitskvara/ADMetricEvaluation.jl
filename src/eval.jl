@@ -1,3 +1,5 @@
+nan_mean(x) = Statistics.mean(x[.!isnan.(x)])
+
 function average_over_folds(df)
 	if df[:model][1] == "IF"
 		return aggregate(df, [:dataset, :model, :num_estimators], Statistics.mean)
@@ -35,6 +37,56 @@ function merge_param_cols!(df)
 		col = col.*" k=".*string.(df[:k])
 	end
 	insertcols!(df, 3, :params=>col)
+end
+
+loaddata(dataset::String, path) = 
+	map(x->CSV.read(joinpath(path, dataset, x)), readdir(joinpath(path, dataset)))
+subdatasets(dataframe_list::Array{DataFrame,1}) = unique([df[:dataset][1] for df in dataframe_list]) 
+mergeds(df_list::Array{DataFrame,1}, metrics::Array{Symbol, 1}) = 
+	vcat(map(x->x[vcat([:dataset, :model], metrics)], df_list)...)
+mergesubd(name::String, df_list::Array{DataFrame,1}, metrics::Array{Symbol, 1}) = 
+	mergeds(filter(x->x[:dataset][1]==name,df_list), metrics)
+mergesubd(names::Array{String,1}, df_list::Array{DataFrame,1}, metrics::Array{Symbol, 1}) = 
+	mergeds(filter(x->x[:dataset][1] in names,df_list), metrics)
+filter_string_by_beginning(x::String, master::String) = (length(x) < length(master)) ? false : (x[1:length(master)]==master)
+filter_string_by_beginnings(x::String, masters::Array{String,1}) = any(map(y->filter_string_by_beginning(x,y),masters))
+function load_all_by_model(data_path, model)
+	datasets = readdir(data_path)
+	dfs = []
+	for dataset in datasets
+		_dfs = loaddata(dataset, data_path)
+		_dfs = filter(x->x[:model][1]==model, _dfs)
+		push!(dfs, vcat(_dfs...))
+	end
+	dfs = filter(x->size(x,1)!=0, dfs)
+	alldf = vcat(dfs...)
+end
+
+function collect_all_data(data_path; aggreg_f = nothing,
+	metrics= [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, 
+			:vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1])
+	datasets = readdir(data_path)
+	res = []
+	for dataset in datasets
+		dfs = loaddata(dataset, data_path)
+		map(merge_param_cols!, dfs)
+		df = mergeds(dfs, vcat([:params, :iteration], metrics)) 
+		map(x->df[x]=Float64.(df[x]), metrics)
+		if aggreg_f == nothing
+			push!(res, df)
+		else
+			push!(res, aggregate(df, [:dataset, :model, :params], aggreg_f))
+		end
+	end
+	return vcat(res...)
+end
+
+function join_with_info(all_data::DataFrame, dataset_info::String)
+	infodf = CSV.read(dataset_info)
+	# drop iterations
+	infodf = infodf[infodf[:iteration].==1,filter(x->x!=:iteration,names(infodf))]
+	# do the join
+	return join(all_data, infodf, on=:dataset)
 end
 
 function pareto_optimal_params(df, metrics)
@@ -185,15 +237,15 @@ function compare_measures(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, 
 	datasets = readdir(data_path)
 	res = []
 	for dataset in datasets
-		dfs = ADMetricEvaluation.loaddata(dataset, data_path)
+		dfs = loaddata(dataset, data_path)
 		aggregdfs = []
 		for df in dfs
-			_df = ADMetricEvaluation.average_over_folds(df)
+			_df = average_over_folds(df)
 			if pareto_optimal
-				_df = ADMetricEvaluation.pareto_optimal_params(_df, map(x->Symbol(string(x)*"_mean"), metrics))
+				_df = pareto_optimal_params(_df, map(x->Symbol(string(x)*"_mean"), metrics))
 			end
-			ADMetricEvaluation.merge_param_cols!(_df)
-			ADMetricEvaluation.drop_cols!(_df)
+			merge_param_cols!(_df)
+			drop_cols!(_df)
 			push!(aggregdfs, _df)
 		end
 		push!(res, vcat(aggregdfs...))
@@ -258,12 +310,12 @@ select_hyperparams(df, subclass, measure, models) = map(x->argmax(df[measure][df
 
 function sensitivity_df(data_path, dataset, measure)
 	# dataset = "pendigits"
-	dfs = ADMetricEvaluation.loaddata(dataset, data_path)
+	dfs = loaddata(dataset, data_path)
 	aggregdfs = []
 	for df in dfs
-		_df = ADMetricEvaluation.average_over_folds(df)
-		ADMetricEvaluation.merge_param_cols!(_df)
-		ADMetricEvaluation.drop_cols!(_df)
+		_df = average_over_folds(df)
+		merge_param_cols!(_df)
+		drop_cols!(_df)
 		push!(aggregdfs, _df)
 	end
 	aggregdf = vcat(aggregdfs...)
@@ -331,4 +383,56 @@ function measures_correlations(data_path::String, dataset_info::String;
 
 #	return alldf, metrics
 	return f
+end
+
+function dataset_measure_correlations(alldf, dataset, measures; correlation="kendall")
+	subdf = @linq alldf |> where(:dataset .== dataset)
+	cordf = DataFrame(:measure=>String[])
+	map(x->cordf[x]=Float64[], measures)
+	for rowm in measures
+		row = Array{Any,1}()
+		push!(row, String(rowm))
+		x = subdf[rowm]
+		for colm in measures
+			r = NaN
+			y = subdf[colm]
+			is=.!(isnan.(x) .| isnan.(y))
+			_x=x[is]
+			_y=y[is]
+			if length(_x)>0 && correlation == "kendall"
+				r = StatsBase.corkendall(_x, _y)
+			elseif length(_x)>0 && correlation == "pearson"
+				r = Statistics.cor(x, y)
+			end
+			push!(row, r)
+		end
+		push!(cordf, row)
+	end
+	return cordf
+end
+
+function global_measure_correlation(data_path, measures = 
+		[:auc, :auc_weighted, :auc_at_5, :auc_at_1, :prec_at_5, :prec_at_1, 
+		:tpr_at_5, :tpr_at_1, :vol_at_5, :vol_at_1]; 
+		correlation = "kendall", average_folds = false)
+	af = (average_folds ? Statistics.mean : nothing)
+	alldf = collect_all_data(data_path, aggreg_f = af, metrics = measures)
+	# rename the columns back if needed
+	if average_folds
+		map(x->rename!(alldf, Symbol(string(x)*"_mean")=>x), measures)
+	end
+	println(names(alldf))
+	datasets = unique(alldf[:dataset])
+	# for every dataset, create the correlation table
+
+	cordfs = map(x->dataset_measure_correlations(alldf, x, measures; correlation = correlation), 
+		datasets)
+	corarr = cat(map(x->convert(Matrix, x[measures]), cordfs)..., dims=3)
+	cordfmean = deepcopy(cordfs[1])
+	for (i,rowm) in enumerate(measures)
+		for (j,colm) in enumerate(measures)
+			cordfmean[i,j+1] = nan_mean(corarr[i,j,:])
+		end
+	end
+	return cordfmean
 end

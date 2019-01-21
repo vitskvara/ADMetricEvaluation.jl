@@ -1,25 +1,3 @@
-loaddata(dataset::String, path) = 
-	map(x->CSV.read(joinpath(path, dataset, x)), readdir(joinpath(path, dataset)))
-subdatasets(dataframe_list::Array{DataFrame,1}) = unique([df[:dataset][1] for df in dataframe_list]) 
-mergeds(df_list::Array{DataFrame,1}, metrics::Array{Symbol, 1}) = 
-	vcat(map(x->x[vcat([:dataset, :model], metrics)], df_list)...)
-mergesubd(name::String, df_list::Array{DataFrame,1}, metrics::Array{Symbol, 1}) = 
-	mergeds(filter(x->x[:dataset][1]==name,df_list), metrics)
-mergesubd(names::Array{String,1}, df_list::Array{DataFrame,1}, metrics::Array{Symbol, 1}) = 
-	mergeds(filter(x->x[:dataset][1] in names,df_list), metrics)
-filter_string_by_beginning(x::String, master::String) = (length(x) < length(master)) ? false : (x[1:length(master)]==master)
-filter_string_by_beginnings(x::String, masters::Array{String,1}) = any(map(y->filter_string_by_beginning(x,y),masters))
-function load_all_by_model(data_path, model)
-	datasets = readdir(data_path)
-	dfs = []
-	for dataset in datasets
-		_dfs = loaddata(dataset, data_path)
-		_dfs = filter(x->x[:model][1]==model, _dfs)
-		push!(dfs, vcat(_dfs...))
-	end
-	dfs = filter(x->size(x,1)!=0, dfs)
-	alldf = vcat(dfs...)
-end
 function linear_fit(x,y)
 	# y = Xb, where X = [ones', x']'
 	s = size(x)
@@ -166,31 +144,6 @@ function single_dataset_corr_grid(dataset, isubd, data_path;
 	
 	# now call the plotting function
 	return correlation_grid_plot(merged_df, metrics, models, st)
-end
-
-function collect_all_data(data_path; aggreg_f = nothing,
-	metrics= [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, 
-			:vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1])
-	datasets = readdir(data_path)
-	res = []
-	for dataset in datasets
-		dfs = loaddata(dataset, data_path)
-		df = mergeds(dfs, vcat([:iteration], metrics)) 
-		if aggreg_f == nothing
-			push!(res, df)
-		else
-			push!(res, aggregate(df, [:dataset, :model], aggreg_f))
-		end
-	end
-	return vcat(res...)
-end
-
-function join_with_info(all_data::DataFrame, dataset_info::String)
-	infodf = CSV.read(dataset_info)
-	# drop iterations
-	infodf = infodf[infodf[:iteration].==1,filter(x->x!=:iteration,names(infodf))]
-	# do the join
-	return join(all_data, infodf, on=:dataset)
 end
 
 """

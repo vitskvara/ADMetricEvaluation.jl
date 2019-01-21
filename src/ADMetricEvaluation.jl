@@ -6,6 +6,7 @@ using DelimitedFiles
 using Random
 using StatsBase
 using DataFrames
+using DataFramesMeta
 using Statistics
 using ProgressMeter
 using UCI
@@ -21,8 +22,8 @@ using LinearAlgebra
 const Float = Float32
 
 include("experiment.jl")
-include("plots.jl")
 include("kNN.jl")
 include("eval.jl")
+include("plots.jl")
 
 end # module
