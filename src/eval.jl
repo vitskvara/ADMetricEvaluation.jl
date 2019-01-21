@@ -421,7 +421,7 @@ function global_measure_correlation(data_path, measures =
 	if average_folds
 		map(x->rename!(alldf, Symbol(string(x)*"_mean")=>x), measures)
 	end
-	println(names(alldf))
+	
 	datasets = unique(alldf[:dataset])
 	# for every dataset, create the correlation table
 
