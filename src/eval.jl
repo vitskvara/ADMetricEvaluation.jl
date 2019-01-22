@@ -436,3 +436,111 @@ function global_measure_correlation(data_path, measures =
 	end
 	return cordfmean
 end
+
+function get_agregdf(data_path, dataset, subclass)
+	dfs = ADMetricEvaluation.loaddata(dataset, data_path)
+	filter!(x->x[:dataset][1] == dataset*"-"*subclass, dfs)
+	aggregdfs = []
+	for df in dfs
+		_df = ADMetricEvaluation.average_over_folds(df)
+		ADMetricEvaluation.merge_param_cols!(_df)
+		ADMetricEvaluation.drop_cols!(_df)
+		push!(aggregdfs, _df)
+	end
+	aggregdf = vcat(aggregdfs...)
+end
+
+
+##############################
+### MULTICLASS SENSITIVITY ###
+##############################
+
+function sensitivity_by_model(aggregdf, model, measure::Symbol) 
+	# create the basis for the return df
+	subclasses = unique(aggregdf[:subclass])
+	sensdf = DataFrame(Symbol("max/loss")=>String[])
+	for subclass in subclasses
+		sensdf[Symbol(subclass)] = Float64[]
+	end
+
+	# filter only the one model requested
+	df = @linq aggregdf |> where(:model .== model) 
+	
+	# now fill the dataframe
+	for rowclass in subclasses
+		global rowvec = Array{Any,1}()
+		push!(rowvec, string(rowclass))
+		for columnclass in subclasses
+			# we select hyperparams on one subclass
+			rowsubdf = @linq df |> where(:subclass.==rowclass)
+			columnsubdf = @linq df |> where(:subclass.==columnclass)
+			hyperparams_ind = argmax(rowsubdf[measure])
+			# and evaluate the difference between the measure on row and column df
+			rowval = rowsubdf[measure][hyperparams_ind]
+			params = rowsubdf[:params][hyperparams_ind]
+			columnval = (@linq columnsubdf |> where(:params.==params))[measure][1]
+			push!(rowvec, abs(rowval-columnval)/columnval*100.0)
+		end
+		push!(sensdf, rowvec)
+	end
+	return sensdf 
+end
+
+function multiclass_sensitivities(data_path, dataset, measure)
+	# collect data from all the subclasses
+	dfs = loaddata(dataset, data_path)
+	aggregdfs = []
+	for df in dfs
+		_df = average_over_folds(df)
+		merge_param_cols!(_df)
+		drop_cols!(_df)
+		push!(aggregdfs, _df)
+	end
+	aggregdf = vcat(aggregdfs...)
+	# rename the mean columns
+	map(x->rename!(aggregdf, x=>Symbol(split(string(x),"_mean")[1])), names(aggregdf)[4:end])
+	# now create subclass column
+	insertcols!(aggregdf, 2, :subclass=>map(x->split(x, dataset)[2][2:end], aggregdf[:dataset]))
+	subclasses = unique(aggregdf[:subclass])
+	models = unique(aggregdf[:model])
+
+	return Dict(zip(Symbol.(models), map(x->sensitivity_by_model(aggregdf, x, measure), models)))
+end
+
+function multiclass_sensitivities_stats(sensdf)
+	df = DataFrame()
+	df[:subclass] = sensdf[1]
+	X = convert(Matrix, sensdf[2:end])
+	N,M = size(X)
+	# remove diagonal zeros
+	I = .!LinearAlgebra.diagm(0 => fill(true,N))
+	X = Array(reshape(X'[I], N-1, N)')
+	df[:mean] = reshape(Statistics.mean(X,dims=2), N)
+	df[:median] = reshape(Statistics.median(X,dims=2), N)
+	df[:min] = reshape(minimum(X,dims=2), N)
+	df[:max] = reshape(maximum(X,dims=2), N)
+	return df
+end
+
+function multiclass_sensitivities_stats(data_path, dataset, measure) 
+	sens = multiclass_sensitivities(data_path, dataset, measure)
+	stats = map(x->multiclass_sensitivities_stats(x), values(sens))
+	return Dict(zip(keys(sens), stats))
+end
+
+prepend_model_to_colnames!(df, model) =
+	map(x->rename!(df, x => Symbol(string(model)*"-"*string(x))), names(df)[2:end])
+	
+function join_multiclass_sensitivities_stats(stats)
+	# rename columns by prepending the model type
+	map(x->prepend_model_to_colnames!(x[2], x[1]), zip(keys(stats), values(stats)))
+	models = collect(keys(stats))
+	res = stats[models[1]]
+	for model in models[2:end]
+		res = join(res, stats[model], on = :subclass)
+	end
+	return res
+end
+
+join_multiclass_sensitivities_stats(data_path, dataset, measure) = 
+	join_multiclass_sensitivities_stats(multiclass_sensitivities_stats(data_path, dataset, measure))

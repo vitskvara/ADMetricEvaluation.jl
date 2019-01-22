@@ -2,22 +2,19 @@ using ADMetricEvaluation
 using DataFrames
 using Statistics
 using PyPlot
+using DataFramesMeta
+using LinearAlgebra
 
-data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data_contaminated"
+data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data"
 
-function get_agregdf(dataset, subclass)
-	dfs = ADMetricEvaluation.loaddata(dataset, data_path)
-	filter!(x->x[:dataset][1] == dataset*"-"*subclass, dfs)
-	aggregdfs = []
-	for df in dfs
-		_df = ADMetricEvaluation.average_over_folds(df)
-		ADMetricEvaluation.merge_param_cols!(_df)
-		ADMetricEvaluation.drop_cols!(_df)
-		push!(aggregdfs, _df)
-	end
-	aggregdf = vcat(aggregdfs...)
-end
+bydf = ADMetricEvaluation.get_agregdf(data_path, "isolet", "1-23")
+ondf = ADMetricEvaluation.get_agregdf(data_path, "isolet", "1-12")
 
-bydf = get_agregdf("isolet", "1-23")
-ondf = get_agregdf("isolet", "1-12")
+#############################
+dataset = "pendigits"
+measure = :auc
+
+sensitivity_dfs = ADMetricEvaluation.multiclass_sensitivities(data_path, dataset, measure)
+stats = ADMetricEvaluation.multiclass_sensitivities_stats(data_path, dataset, measure) 
+joined_stats = ADMetricEvaluation.join_multiclass_sensitivities_stats(stats)
 
