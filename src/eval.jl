@@ -222,9 +222,13 @@ function collect_rows(alldf, metric, metrics)
 	for dataset in datasets
 		for model in models
 			subdf = alldf[(alldf[:dataset].==dataset) .& (alldf[:model].==model), :]
-			if size(subdf, 1) > 0
-				imax = argmax(subdf[metric])
-				push!(df, subdf[imax, vcat([:dataset, :model], metrics)])
+			x = subdf[metric]
+			#inds = .!isnan.(x) 
+			inds = 1:length(x)
+			x = x[inds]
+			if size(x, 1) > 0
+				imax = argmax(x)
+				push!(df, subdf[inds,:][imax, vcat([:dataset, :model], metrics)])
 			end
 		end
 	end
@@ -255,6 +259,7 @@ function compare_measures(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, 
 		new_name = Symbol(split(string(name), "_mean")[1])
 		rename!(alldf, name => new_name	)
 	end
+	# this contains the maximized values by dataset for each algo
 	measure_dict = Dict(zip(metrics, map(x->collect_rows(alldf,x,metrics),metrics)))
 	
 	# now create a set of tables that represent the mean loss and its variance in measure values 
@@ -304,6 +309,33 @@ function compare_measures(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, 
 		end
 	end
 	return mean_diff, sd_diff, rel_mean_diff, rel_sd_diff	
+end
+
+function compare_measures_by_dataset(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, 
+		:tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1];
+		pareto_optimal=false)
+	datasets = readdir(data_path)
+	res = []
+	for dataset in datasets
+		dfs = loaddata(dataset, data_path)
+		aggregdfs = []
+		for df in dfs
+			_df = average_over_folds(df)
+			if pareto_optimal
+				_df = pareto_optimal_params(_df, map(x->Symbol(string(x)*"_mean"), metrics))
+			end
+			merge_param_cols!(_df)
+			drop_cols!(_df)
+			push!(aggregdfs, _df)
+		end
+		push!(res, vcat(aggregdfs...))
+	end
+	alldf = vcat(res...)
+	for name in names(alldf)
+		new_name = Symbol(split(string(name), "_mean")[1])
+		rename!(alldf, name => new_name	)
+	end
+	measure_dict = Dict(zip(metrics, map(x->collect_rows(alldf,x,metrics),metrics)))
 end
 
 select_hyperparams(df, subclass, measure, models) = map(x->argmax(df[measure][df[:model].==x]), models)
@@ -455,7 +487,7 @@ end
 ### MULTICLASS SENSITIVITY ###
 ##############################
 
-function sensitivity_by_model(aggregdf, model, measure::Symbol) 
+function sensitivity_by_model(aggregdf, model, measure::Symbol; max_loss = true) 
 	# create the basis for the return df
 	subclasses = unique(aggregdf[:subclass])
 	sensdf = DataFrame(Symbol("max/loss")=>String[])
@@ -472,13 +504,18 @@ function sensitivity_by_model(aggregdf, model, measure::Symbol)
 		push!(rowvec, string(rowclass))
 		for columnclass in subclasses
 			# we select hyperparams on one subclass
-			rowsubdf = @linq df |> where(:subclass.==rowclass)
-			columnsubdf = @linq df |> where(:subclass.==columnclass)
+			rowsubdf = filter!(x->.!isnan(x[measure]), @linq df |> where(:subclass.==rowclass))
+			columnsubdf = filter!(x->.!isnan(x[measure]), @linq df |> where(:subclass.==columnclass))
 			hyperparams_ind = argmax(rowsubdf[measure])
 			# and evaluate the difference between the measure on row and column df
-			rowval = rowsubdf[measure][hyperparams_ind]
 			params = rowsubdf[:params][hyperparams_ind]
-			columnval = (@linq columnsubdf |> where(:params.==params))[measure][1]
+			if !max_loss
+				rowval = rowsubdf[measure][hyperparams_ind]
+				columnval = (@linq columnsubdf |> where(:params.==params))[measure][1]
+			else
+				rowval = (@linq columnsubdf |> where(:params.==params))[measure][1]
+				columnval = maximum(columnsubdf[measure])
+			end
 			push!(rowvec, abs(rowval-columnval)/columnval*100.0)
 		end
 		push!(sensdf, rowvec)
@@ -506,6 +543,8 @@ function multiclass_sensitivities(data_path, dataset, measure)
 
 	return Dict(zip(Symbol.(models), map(x->sensitivity_by_model(aggregdf, x, measure), models)))
 end
+
+nan_aggreg(x::Vector, af) = af(x[.!isnan.(x)])
 
 function multiclass_sensitivities_stats(sensdf)
 	df = DataFrame()

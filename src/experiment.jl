@@ -253,6 +253,7 @@ function dataset_chars(X_tr, y_tr, X_tst, y_tst)
 	X = hcat(X_tr, X_tst)
 	y = vcat(y_tr, y_tst)
 	res[:anomalous_p] = sum(y)/length(y)
+	res[:anomalous_p_test] = sum(y_tst)/length(y_tst)
 	res[:clusterdness] = clusterdness(X,y)
 	res[:M], res[:N] = size(X)
 	# compute the volume ratios
@@ -272,7 +273,7 @@ end
 
 Compute characteristics of all datasets.
 """
-function umap_dataset_chars(output_path; umap_data_path="", p=0.8, nexp=10, standardize=false)
+function umap_dataset_chars(output_path; umap_data_path="", p=0.8, contamination=0.0, nexp=10, standardize=false)
 	datasets = readdir(UCI.get_raw_datapath())
 	results = []
 	mkpath(output_path)
@@ -282,7 +283,7 @@ function umap_dataset_chars(output_path; umap_data_path="", p=0.8, nexp=10, stan
 		for (data, class_label) in multiclass_data
 			dataset_label = (class_label=="" ? dataset : dataset*"-"*class_label)
 			for iexp in 1:nexp
-				X_tr, y_tr, X_tst, y_tst = UCI.split_data(data, p; seed = iexp, 
+				X_tr, y_tr, X_tst, y_tst = UCI.split_data(data, p, contamination; seed = iexp, 
 					standardize=standardize)
 				line = dataset_chars(X_tr, y_tr, X_tst, y_tst)
 				insertcols!(line, 1, :iteration=>iexp)
@@ -293,6 +294,6 @@ function umap_dataset_chars(output_path; umap_data_path="", p=0.8, nexp=10, stan
 		ProgressMeter.next!(prog; showvalues = [(:dataset,dataset)])
 	end
 	df = vcat(results...)
-	CSV.write(joinpath(output_path, "dataset_overview.csv"), df)
+	CSV.write(joinpath(output_path, "dataset_overview_cont-$(contamination).csv"), df)
 	return df 	
 end
