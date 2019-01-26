@@ -104,10 +104,12 @@ end
 Run the experiment n times with different resamplings of data.
 """
 function experiment_nfold(model, parameters, param_names, data::UCI.ADDataset; 
-	n_experiments::Int = 10, p::Real = 0.8, contamination::Real=0.05, standardize=false, exp_kwargs...)
+	n_experiments::Int = 10, p::Real = 0.8, contamination::Real=0.05, 
+	test_contamination = nothing, standardize=false, exp_kwargs...)
 	results = []
 	for iexp in 1:n_experiments
-		X_tr, y_tr, X_tst, y_tst = UCI.split_data(data, p, contamination; seed = iexp, standardize=standardize)
+		X_tr, y_tr, X_tst, y_tst = UCI.split_data(data, p, contamination;
+			test_contamination = test_contamination, seed = iexp, standardize=standardize)
 		res = experiment(model, parameters, X_tr, y_tr, X_tst, y_tst; exp_kwargs...)
 		for (par_name, par_val) in zip(param_names, parameters)
 			insertcols!(res, 1, par_name=>par_val) # append the column to the beginning of the df

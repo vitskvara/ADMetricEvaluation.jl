@@ -4,16 +4,16 @@ ADME = ADMetricEvaluation
 include("models.jl")
 
 dataset = ARGS[1]
-contamination = ARGS[2]
+test_contamination = ARGS[2]
 
 host = gethostname()
 #master path where data will be stored
 if host == "vit"
-	outpath = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data_contaminated-$(contamination)"
+	outpath = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data_testcon-$(test_contamination)"
 elseif host == "axolotl.utia.cas.cz"
-	outpath = "/home/skvara/work/anomaly_detection/data/metric_evaluation/umap_data_contaminated-$(contamination)"
+	outpath = "/home/skvara/work/anomaly_detection/data/metric_evaluation/umap_data_testcon-$(test_contamination)"
 elseif host == "soroban-node-03"
-	outpath = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/umap_data_contaminated-$(contamination)"
+	outpath = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/umap_data_testcon-$(test_contamination)"
 end
 
 mkpath(outpath)
@@ -35,6 +35,8 @@ param_struct = [
 			 ]
 
 @time res = ADME.run_umap_experiment(dataset, models, model_names, param_struct, outpath;
-	n_experiments = n_experiments, p = p, contamination=Float64(Meta.parse(contamination)), 
+	n_experiments = n_experiments, p = p,
+	contamination = 0.01, 
+	test_contamination=Float64(Meta.parse(test_contamination)), 
 	mc_volume_iters = mc_volume_iters, 
 	mc_volume_repeats = mc_volume_repeats, standardize=true)
