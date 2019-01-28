@@ -48,7 +48,8 @@ end
 Basic one experiment function.
 """
 function experiment(model, parameters, X_train, y_train, X_test, y_test;
-	mc_volume_iters::Int = 100000, mc_volume_repeats::Int = 10)
+	mc_volume_iters::Int = 100000, mc_volume_repeats::Int = 10,
+	fpr_10 = false)
 	# create and fit the model and produce anomaly scores
 	m = model(parameters...)
 	try
@@ -81,7 +82,17 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 			vf() = EvalCurves.volume_at_fpr(threshold, bounds, score_fun, mc_volume_iters)
 			
 			metric_vals[label] = 1-EvalCurves.mc_volume_estimate(vf, mc_volume_repeats)
-		end	
+		end
+
+		if fpr_10
+			metric_vals[:auc_at_10] = EvalCurves.auc_at_p(fprvec,tprvec,0.1; normalize = true)
+			metric_vals[:prec_at_10] = precision_at_p(score_fun, X_test, y_test, 0.1)
+			metric_vals[:tpr_at_10] = EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.1)
+			threshold = EvalCurves.threshold_at_fpr(scores, y_test, 0.1; warn = false)
+			vf() = EvalCurves.volume_at_fpr(threshold, bounds, score_fun, mc_volume_iters)
+			metric_vals[:vol_at_10] = 1-EvalCurves.mc_volume_estimate(vf, mc_volume_repeats)
+		end
+			
 		return metric_vals
 	catch e
 		if isa(e, ArgumentError)
@@ -91,9 +102,17 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 		else
 			throw(e)
 		end
-		return DataFrame(:auc=>NaN, :auc_weighted=>NaN, :auc_at_5=>NaN, 
-			:auc_at_1=>NaN, :prec_at_5=>NaN, :prec_at_1=>NaN, :tpr_at_5=>NaN,
-			:tpr_at_1=>NaN, :vol_at_5=>NaN, :vol_at_1=>NaN)
+		if fpr_10
+			return DataFrame(:auc=>NaN, :auc_weighted=>NaN, :auc_at_5=>NaN, 
+				:auc_at_1=>NaN, :prec_at_5=>NaN, :prec_at_1=>NaN, :tpr_at_5=>NaN,
+				:tpr_at_1=>NaN, :vol_at_5=>NaN, :vol_at_1=>NaN,
+				:auc_at_10 => NaN, :prec_at_10 => NaN, :tpr_at_10 => NaN,
+				:vol_at_10 => NaN)
+		else
+			return DataFrame(:auc=>NaN, :auc_weighted=>NaN, :auc_at_5=>NaN, 
+				:auc_at_1=>NaN, :prec_at_5=>NaN, :prec_at_1=>NaN, :tpr_at_5=>NaN,
+				:tpr_at_1=>NaN, :vol_at_5=>NaN, :vol_at_1=>NaN)
+		end
 	end
 end
 
