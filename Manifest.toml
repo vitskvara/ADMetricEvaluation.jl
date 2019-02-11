@@ -49,6 +49,12 @@ git-tree-sha1 = "ad34fefb72b18a8dd5c17fab9089d11111b61935"
 uuid = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 version = "0.14.1"
 
+[[DataFramesMeta]]
+deps = ["DataFrames", "Random", "Statistics", "Tables", "Test"]
+git-tree-sha1 = "853109fcd1ac1a31c4fb757401a25f260e827aa1"
+uuid = "1313f7d8-7da2-5740-9ea0-a2ca25f37964"
+version = "0.4.1"
+
 [[DataStreams]]
 deps = ["Dates", "Missings", "Test", "WeakRefStrings"]
 git-tree-sha1 = "69c72a1beb4fc79490c361635664e13c8e4a9548"
