@@ -23,13 +23,14 @@ mc_volume_repeats = 10
 models = [kNN_model]
 model_names = ["kNN"]
 param_struct = [
-				([[9], [:delta]], [:k,:metric])
+				([[1, 3, 9], [:kappa, :gamma]], [:k,:metric])
 			 ]
 
-#@time res = ADME.run_experiment(dataset, models, model_names, param_struct, outpath;
-#	n_experiments = n_experiments, p = p, contamination=0.05, mc_volume_iters = mc_volume_iters, 
-#	mc_volume_repeats = mc_volume_repeats, standardize=true)
-
-@time res = ADME.run_umap_experiment(dataset, models, model_names, param_struct, outpath;
+@time res = ADME.run_experiment(dataset, models, model_names, param_struct, outpath;
 	n_experiments = n_experiments, p = p, contamination=0.05, mc_volume_iters = mc_volume_iters, 
 	mc_volume_repeats = mc_volume_repeats, standardize=true)
+
+#@time res = ADME.run_umap_experiment(dataset, models, model_names, param_struct, outpath;
+#	n_experiments = n_experiments, p = p, contamination=0.05, mc_volume_iters = mc_volume_iters, 
+#	mc_volume_repeats = mc_volume_repeats, standardize=true)
+println(res)

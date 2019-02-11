@@ -1,4 +1,6 @@
 nan_mean(x) = Statistics.mean(x[.!isnan.(x)])
+matrix_col_nan_mean(X) =
+	map(i->ADMetricEvaluation.nan_mean(X[i,:]), 1:size(X,1))
 
 function average_over_folds(df)
 	if df[:model][1] == "IF"
@@ -39,8 +41,13 @@ function merge_param_cols!(df)
 	insertcols!(df, 3, :params=>col)
 end
 
-loaddata(dataset::String, path) = 
-	map(x->CSV.read(joinpath(path, dataset, x)), readdir(joinpath(path, dataset)))
+function loaddata(dataset::String, path; allsubdatasets=true)
+	subdatasets = readdir(joinpath(path, dataset))
+	if !allsubdatasets
+		subdatasets=subdatasets[1:4]
+	end
+	map(x->CSV.read(joinpath(path, dataset, x)), subdatasets)
+end
 subdatasets(dataframe_list::Array{DataFrame,1}) = unique([df[:dataset][1] for df in dataframe_list]) 
 mergeds(df_list::Array{DataFrame,1}, metrics::Array{Symbol, 1}) = 
 	vcat(map(x->x[vcat([:dataset, :model], metrics)], df_list)...)
@@ -215,7 +222,7 @@ stripnans(x) = x[.!isnan.(x)]
 function collect_rows(alldf, metric, metrics)
 	datasets = unique(alldf[:dataset])
 	models = unique(alldf[:model])
-	df = DataFrame(:dataset=>String[], :model=>String[])
+	df = DataFrame(:dataset=>String[], :model=>String[], :params=>String[])
 	for m in metrics
 		df[m] = Float64[]
 	end
@@ -223,25 +230,30 @@ function collect_rows(alldf, metric, metrics)
 		for model in models
 			subdf = alldf[(alldf[:dataset].==dataset) .& (alldf[:model].==model), :]
 			x = subdf[metric]
-			#inds = .!isnan.(x) 
-			inds = 1:length(x)
+			inds = .!isnan.(x) 
+			#inds = 1:length(x)
 			x = x[inds]
 			if size(x, 1) > 0
 				imax = argmax(x)
-				push!(df, subdf[inds,:][imax, vcat([:dataset, :model], metrics)])
+				push!(df, subdf[inds,:][imax, vcat([:dataset, :model, :params], metrics)])
+			else
+				push!(df, vcat([dataset, "", ""], fill(NaN, length(metrics))))
 			end
 		end
 	end
 	return df
 end
 
-function compare_measures(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, 
+function collect_fold_averages(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, 
 		:tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1];
-		pareto_optimal=false)
+		pareto_optimal=false, models = ["kNN", "LOF", "IF", "OCSVM"],
+		allsubdatasets = true)
+	# get the list of datasets in the master path
 	datasets = readdir(data_path)
+	# now collect the averages over folds 
 	res = []
 	for dataset in datasets
-		dfs = loaddata(dataset, data_path)
+		dfs = loaddata(dataset, data_path; allsubdatasets = allsubdatasets)
 		aggregdfs = []
 		for df in dfs
 			_df = average_over_folds(df)
@@ -255,11 +267,75 @@ function compare_measures(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, 
 		push!(res, vcat(aggregdfs...))
 	end
 	alldf = vcat(res...)
+	# filter out some models
+	filter!(x->x[:model] in models, alldf)
+	# remove the _mean suffix from the dataset
 	for name in names(alldf)
 		new_name = Symbol(split(string(name), "_mean")[1])
 		rename!(alldf, name => new_name	)
 	end
-	# this contains the maximized values by dataset for each algo
+	return alldf
+end
+
+function rel_max_loss(measure_dict, measures)
+	# this contains the mean differences
+	diff_df = DataFrame(:measure=>Symbol[])
+	map(x->diff_df[x] = Float64[], measures)
+	for meas_row in measures
+		row = Array{Any,1}()
+		push!(row, meas_row)
+		for meas_column in measures
+			# the diagonals should be 0/NaNs
+			if meas_column == meas_row
+				push!(row, NaN)
+			else
+				try 
+					x1 = measure_dict[meas_row][meas_column][1] # available value = row
+					x2 = measure_dict[meas_column][meas_column][1] # true maximum = column
+					push!(row, abs.(x2.-x1)/x2)
+				catch e 
+					# this happens if the csv file is not present
+					if isa(e, BoundsError)
+						push!(row, NaN)
+					else
+						throw(e)
+					end
+				end
+			end
+		end
+		push!(diff_df, row)
+	end
+	return diff_df
+end
+
+function compare_measures_by_dataset_and_model(data_path, measures = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, 
+		:tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1]; allsubdatasets = true)
+	alldf = collect_fold_averages(data_path, measures; allsubdatasets = allsubdatasets)
+	measure_dict = Dict(zip(measures, map(x->collect_rows(alldf,x,measures),measures)))
+	datasets = unique(alldf[:dataset])
+	models = unique(alldf[:model])
+	rel_loss_dfs = []
+	for dataset in datasets
+		for model in models
+			filtered_dict=Dict(zip(measures, map(key->(@linq measure_dict[key] |> where(:dataset.==dataset, :model.==model)), measures)))
+			rel_loss_df = rel_max_loss(filtered_dict, measures)
+			insertcols!(rel_loss_df, 1, :dataset=>dataset)
+			insertcols!(rel_loss_df, 2, :model=>model)
+			push!(rel_loss_dfs, rel_loss_df)
+		end
+	end
+	return vcat(rel_loss_dfs...)
+end
+
+
+function compare_measures(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, 
+		:tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1];
+		pareto_optimal=false, models = ["kNN", "LOF", "IF", "OCSVM"],
+		allsubdatasets = true)
+	# collect all fold averages
+	alldf = collect_fold_averages(data_path, metrics;
+		pareto_optimal=pareto_optimal, models = models,
+		allsubdatasets = allsubdatasets)
 	measure_dict = Dict(zip(metrics, map(x->collect_rows(alldf,x,metrics),metrics)))
 	
 	# now create a set of tables that represent the mean loss and its variance in measure values 
@@ -289,25 +365,107 @@ function compare_measures(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, 
 	map(x->rel_sd_diff[x]=rel_sd_diff[x]/means[x],metrics)
  
 	# histogram plots
-	nm = length(metrics)
-	i=0 # i se pridava v radku, postupne se pridavaji radky
+	#nm = length(metrics)
+	#i=0 # i se pridava v radku, postupne se pridavaji radky
+	#for metric_row in metrics
+	#	for metric_column in metrics
+	#		x1 = measure_dict[metric_row][metric_column] # available value = row
+	#		x2 = measure_dict[metric_column][metric_column] # true maximum = column
+	#		i+=1
+	#		ax = subplot(nm,nm,i)
+	#		y = x2-x1
+	#		plt[:hist](y[.!isnan.(y)],50)
+	#		if i>nm*(nm-1)
+	#			xlabel(string(metric_column))
+	#		end
+	#		if (i-1)%nm==0
+	#			ylabel(string(metric_row))
+	#		end
+	#		
+	#	end
+	#end
+	return mean_diff, sd_diff, rel_mean_diff, rel_sd_diff	
+end
+
+function collect_rows_model_is_parameter(alldf, metric, metrics)
+	datasets = unique(alldf[:dataset])
+	df = DataFrame(:dataset=>String[], :model=>String[], :params=>String[])
+	for m in metrics
+		df[m] = Float64[]
+	end
+	for dataset in datasets
+		subdf = alldf[(alldf[:dataset].==dataset), :]
+		x = subdf[metric]
+		inds = .!isnan.(x) 
+		#inds = 1:length(x)
+		x = x[inds]
+		if size(x, 1) > 0
+			imax = argmax(x)
+			push!(df, subdf[inds,:][imax, vcat([:dataset, :model, :params], metrics)])
+		else
+			push!(df, vcat([dataset, "", ""], fill(NaN, length(metrics))))
+		end
+	end
+	return df
+end
+
+function compare_measures_model_is_parameter(data_path, metrics = 
+		[:auc, :auc_weighted, :auc_at_5, :prec_at_5, 
+		:tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1];
+		pareto_optimal=false, models = ["kNN", "LOF", "IF", "OCSVM"],
+		allsubdatasets = true)
+	# collect all fold averages
+	alldf = collect_fold_averages(data_path, metrics;
+		pareto_optimal=pareto_optimal, models = models,
+		allsubdatasets = allsubdatasets)
+	measure_dict = Dict(zip(metrics, map(x->collect_rows_model_is_parameter(alldf,x,metrics),metrics)))
+	
+	# now create a set of tables that represent the mean loss and its variance in measure values 
+	# when maximising by a another measure
+	means = Dict(zip(metrics, map(x->Statistics.mean(measure_dict[x][x][.!isnan.(measure_dict[x][x])]), metrics)))
+	mean_diff = DataFrame(:measure=>Symbol[])
+	map(x->mean_diff[x] = Float64[], metrics)
+	sd_diff = deepcopy(mean_diff)
 	for metric_row in metrics
+		mean_row = Array{Any,1}()
+		sd_row = Array{Any,1}()
+		push!(mean_row, metric_row)
+		push!(sd_row, metric_row)
 		for metric_column in metrics
 			x1 = measure_dict[metric_row][metric_column] # available value = row
 			x2 = measure_dict[metric_column][metric_column] # true maximum = column
-			i+=1
-			ax = subplot(nm,nm,i)
-			y = x2-x1
-			plt[:hist](y[.!isnan.(y)],50)
-			if i>nm*(nm-1)
-				xlabel(string(metric_column))
-			end
-			if (i-1)%nm==0
-				ylabel(string(metric_row))
-			end
-			
+			push!(mean_row, Statistics.mean(stripnans(x2.-x1)))
+			push!(sd_row, Statistics.std(stripnans(x2.-x1)))
 		end
+		push!(mean_diff, mean_row)
+		push!(sd_diff, sd_row)
 	end
+	# compute the relative losses
+	rel_mean_diff = deepcopy(mean_diff)
+	map(x->rel_mean_diff[x]=rel_mean_diff[x]/means[x],metrics)
+	rel_sd_diff = deepcopy(sd_diff)
+	map(x->rel_sd_diff[x]=rel_sd_diff[x]/means[x],metrics)
+ 
+	# histogram plots
+	#nm = length(metrics)
+	#i=0 # i se pridava v radku, postupne se pridavaji radky
+	#for metric_row in metrics
+	#	for metric_column in metrics
+	#		x1 = measure_dict[metric_row][metric_column] # available value = row
+	#		x2 = measure_dict[metric_column][metric_column] # true maximum = column
+	#		i+=1
+	#		ax = subplot(nm,nm,i)
+	#		y = x2-x1
+	#		plt[:hist](y[.!isnan.(y)],50)
+	#		if i>nm*(nm-1)
+	#			xlabel(string(metric_column))
+	#		end
+	#		if (i-1)%nm==0
+	#			ylabel(string(metric_row))
+	#		end
+	#		
+	#	end
+	#end
 	return mean_diff, sd_diff, rel_mean_diff, rel_sd_diff	
 end
 
@@ -523,6 +681,62 @@ function sensitivity_by_model(aggregdf, model, measure::Symbol; max_loss = true)
 	return sensdf 
 end
 
+function sensitivity_by_model_no_diff(aggregdf, model, measure::Symbol; max_loss = true) 
+	# create the basis for the return df
+	subclasses = unique(aggregdf[:subclass])
+	sensdf = DataFrame(Symbol("max/loss")=>String[])
+	for subclass in subclasses
+		sensdf[Symbol(subclass)] = Float64[]
+	end
+
+	# filter only the one model requested
+	df = @linq aggregdf |> where(:model .== model) 
+	
+	# now fill the dataframe
+	for rowclass in subclasses
+		global rowvec = Array{Any,1}()
+		push!(rowvec, string(rowclass))
+		for columnclass in subclasses
+			try
+				# we select hyperparams on one subclass
+				rowsubdf = filter!(x->.!isnan(x[measure]), @linq df |> where(:subclass.==rowclass))
+				columnsubdf = filter!(x->.!isnan(x[measure]), @linq df |> where(:subclass.==columnclass))
+				hyperparams_ind = argmax(rowsubdf[measure])
+				# and evaluate the difference between the measure on row and column df
+				params = rowsubdf[:params][hyperparams_ind]
+				rowval = (@linq columnsubdf |> where(:params.==params))[measure][1]
+				columnval = maximum(columnsubdf[measure])
+				push!(rowvec, rowval/columnval)
+			catch e 
+				push!(rowvec, NaN)
+			end
+		end
+		push!(sensdf, rowvec)
+	end
+	return sensdf 
+end
+
+function multiclass_sensitivities_no_diff(data_path, dataset, measure)
+	# collect data from all the subclasses
+	dfs = loaddata(dataset, data_path)
+	aggregdfs = []
+	for df in dfs
+		_df = average_over_folds(df)
+		merge_param_cols!(_df)
+		drop_cols!(_df)
+		push!(aggregdfs, _df)
+	end
+	aggregdf = vcat(aggregdfs...)
+	# rename the mean columns
+	map(x->rename!(aggregdf, x=>Symbol(split(string(x),"_mean")[1])), names(aggregdf)[4:end])
+	# now create subclass column
+	insertcols!(aggregdf, 2, :subclass=>map(x->split(x, dataset)[2][2:end], aggregdf[:dataset]))
+	subclasses = unique(aggregdf[:subclass])
+	models = unique(aggregdf[:model])
+
+	return Dict(zip(Symbol.(models), map(x->sensitivity_by_model_no_diff(aggregdf, x, measure), models)))
+end
+
 function multiclass_sensitivities(data_path, dataset, measure)
 	# collect data from all the subclasses
 	dfs = loaddata(dataset, data_path)
@@ -583,3 +797,70 @@ end
 
 join_multiclass_sensitivities_stats(data_path, dataset, measure) = 
 	join_multiclass_sensitivities_stats(multiclass_sensitivities_stats(data_path, dataset, measure))
+
+# now continue with multiclass_sensitivities_stats(_no_diff) output
+function diag_nans!(df)
+	M,N = size(df)
+	for i in 1:M
+		df[i, i+1] = NaN
+	end
+	return df
+end
+
+function collect_one_dataset_one_measure_data(data_path, dataset, measure; no_diff=true, 
+	average_subproblems = false)
+	sens_dict = (no_diff) ? 
+		multiclass_sensitivities_no_diff(data_path, dataset, measure) :
+		multiclass_sensitivities(data_path, dataset, measure)	
+	models = collect(keys(sens_dict))
+	res_df = DataFrame(:dataset=>String[], :model=>String[],
+		:subclass=>String[], measure=>Array{Float64,1}[])
+	for model in models
+		df = diag_nans!(sens_dict[model])
+		subclasses = df[Symbol("max/loss")]
+		for subclass in subclasses
+			row = Array{Any,1}()
+			push!(row, dataset, string(model), subclass)
+			# this is the row from df
+			x = convert(Matrix, df[df[Symbol("max/loss")].==subclass, 2:end])
+			if average_subproblems
+				push!(row, [nan_mean(x)]) # vectorize this
+			else
+				push!(row, x[.!isnan.(x)])
+			end
+			push!(res_df, row)
+		end
+	end
+	return res_df
+end
+
+function collect_one_dataset_data(data_path, dataset, measures; no_diff=true,
+	average_subproblems=false)
+	res_df = DataFrame(:dataset=>String[], :model=>String[],
+				:subclass=>String[])
+	map(x->res_df[x]=Array{Float64,1}[], measures)
+	try
+		res_df = collect_one_dataset_one_measure_data(data_path, dataset, measures[1];
+			no_diff=no_diff, average_subproblems=average_subproblems)
+	catch e
+		if isa(e, SystemError) # the dataset does not exist in the data_path
+			return res_df
+		else
+			throw(e)
+		end
+	end
+	if length(measures) == 1
+		return res_df
+	end
+	for measure in measures[2:end]
+		df = collect_one_dataset_one_measure_data(data_path, dataset, measure;
+		no_diff=no_diff, average_subproblems=average_subproblems)
+		res_df = join(res_df, df, on = [:dataset, :model, :subclass])
+	end
+	return res_df
+end
+
+collect_all_datasets_data(data_path, datasets, measures;
+	no_diff=true, average_subproblems=false) = 
+		vcat(map(x->collect_one_dataset_data(data_path, x, measures; 
+		no_diff=no_diff, average_subproblems=average_subproblems), datasets)...)
