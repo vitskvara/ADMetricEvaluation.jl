@@ -15,7 +15,6 @@ using Clustering
 using Distances
 using PyPlot
 using Printf
-using MultiObjective
 using NearestNeighbors
 using LinearAlgebra
 

@@ -96,18 +96,18 @@ function join_with_info(all_data::DataFrame, dataset_info::String)
 	return join(all_data, infodf, on=:dataset)
 end
 
-function pareto_optimal_params(df, metrics)
-	X = convert(Array,df[metrics])'
-	weight_mask = fill(false, length(metrics))
-	weight_mask[findall(x->x == :auc_weighted_mean, metrics)[1]] == true
-	pareto_optimal_i = MultiObjective.pareto_best_index(X, weight_mask)
-	return df[pareto_optimal_i,:] 
-end
+#function pareto_optimal_params(df, metrics)
+#	X = convert(Array,df[metrics])'
+#	weight_mask = fill(false, length(metrics))
+#	weight_mask[findall(x->x == :auc_weighted_mean, metrics)[1]] == true
+#	pareto_optimal_i = MultiObjective.pareto_best_index(X, weight_mask)
+#	return df[pareto_optimal_i,:] 
+#end
 
 function rank_models(data_path::String; 
 	metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, :vol_at_5],
-	models = ["kNN", "IF", "LOF", "OCSVM"],
-	pareto_optimal = false
+	models = ["kNN", "IF", "LOF", "OCSVM"]
+	# pareto_optimal = false
 	)
 	# first get the aggregated collection of all data
 	datasets = readdir(data_path)
@@ -117,30 +117,30 @@ function rank_models(data_path::String;
 		aggregdfs = []
 		for df in dfs
 			_df = average_over_folds(df)
-			if pareto_optimal
-				_df = pareto_optimal_params(_df, map(x->Symbol(string(x)*"_mean"), metrics))
-			end
+			#if pareto_optimal
+			#	_df = pareto_optimal_params(_df, map(x->Symbol(string(x)*"_mean"), metrics))
+			#end
 			merge_param_cols!(_df)
 			drop_cols!(_df)
 			push!(aggregdfs, _df)
 		end
 		push!(res, vcat(aggregdfs...))
 	end
-	if !pareto_optimal
-		alldf = aggregate(vcat(res...), [:dataset, :model], maximum)
-	else
-		alldf = vcat(res...)
-	end
+#	if !pareto_optimal
+#		alldf = aggregate(vcat(res...), [:dataset, :model], maximum)
+#	else
+	alldf = vcat(res...)
+#	end
 
 	datasets = unique(alldf[:dataset])
 	rankdf = DataFrame(:dataset=>String[], :metric=>Any[], :kNN=>Float64[], :LOF=>Float64[],
 		:IF=>Float64[], :OCSVM=>Float64[])
 	for dataset in datasets
-		if pareto_optimal
-			aggmetrics = map(x->Symbol(string(x)*"_mean"), metrics)
-		else
-			aggmetrics = map(x->Symbol(string(x)*"_mean_maximum"), metrics)
-		end
+		#if pareto_optimal
+		#	aggmetrics = map(x->Symbol(string(x)*"_mean"), metrics)
+		#else
+		aggmetrics = map(x->Symbol(string(x)*"_mean_maximum"), metrics)
+		#end
 		for metric in aggmetrics  
 			vals = alldf[alldf[:dataset].==dataset, [:model, metric]]
 			vals[:rank]=rankvals(vals[metric])
@@ -246,7 +246,8 @@ end
 
 function collect_fold_averages(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, 
 		:tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1];
-		pareto_optimal=false, models = ["kNN", "LOF", "IF", "OCSVM"],
+		#pareto_optimal=false, 
+		models = ["kNN", "LOF", "IF", "OCSVM"],
 		allsubdatasets = true)
 	# get the list of datasets in the master path
 	datasets = readdir(data_path)
@@ -257,9 +258,9 @@ function collect_fold_averages(data_path, metrics = [:auc, :auc_weighted, :auc_a
 		aggregdfs = []
 		for df in dfs
 			_df = average_over_folds(df)
-			if pareto_optimal
-				_df = pareto_optimal_params(_df, map(x->Symbol(string(x)*"_mean"), metrics))
-			end
+			#if pareto_optimal
+			#	_df = pareto_optimal_params(_df, map(x->Symbol(string(x)*"_mean"), metrics))
+			#end
 			merge_param_cols!(_df)
 			drop_cols!(_df)
 			push!(aggregdfs, _df)
@@ -330,11 +331,13 @@ end
 
 function compare_measures(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, 
 		:tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1];
-		pareto_optimal=false, models = ["kNN", "LOF", "IF", "OCSVM"],
+		#pareto_optimal=false, 
+		models = ["kNN", "LOF", "IF", "OCSVM"],
 		allsubdatasets = true)
 	# collect all fold averages
 	alldf = collect_fold_averages(data_path, metrics;
-		pareto_optimal=pareto_optimal, models = models,
+		#pareto_optimal=pareto_optimal, 
+		models = models,
 		allsubdatasets = allsubdatasets)
 	measure_dict = Dict(zip(metrics, map(x->collect_rows(alldf,x,metrics),metrics)))
 	
@@ -412,11 +415,13 @@ end
 function compare_measures_model_is_parameter(data_path, metrics = 
 		[:auc, :auc_weighted, :auc_at_5, :prec_at_5, 
 		:tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1];
-		pareto_optimal=false, models = ["kNN", "LOF", "IF", "OCSVM"],
+		#pareto_optimal=false, 
+		models = ["kNN", "LOF", "IF", "OCSVM"],
 		allsubdatasets = true)
 	# collect all fold averages
 	alldf = collect_fold_averages(data_path, metrics;
-		pareto_optimal=pareto_optimal, models = models,
+		#pareto_optimal=pareto_optimal, 
+		models = models,
 		allsubdatasets = allsubdatasets)
 	measure_dict = Dict(zip(metrics, map(x->collect_rows_model_is_parameter(alldf,x,metrics),metrics)))
 	
@@ -470,8 +475,9 @@ function compare_measures_model_is_parameter(data_path, metrics =
 end
 
 function compare_measures_by_dataset(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, 
-		:tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1];
-		pareto_optimal=false)
+		:tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1]
+		#pareto_optimal=false
+		)
 	datasets = readdir(data_path)
 	res = []
 	for dataset in datasets
@@ -479,9 +485,9 @@ function compare_measures_by_dataset(data_path, metrics = [:auc, :auc_weighted, 
 		aggregdfs = []
 		for df in dfs
 			_df = average_over_folds(df)
-			if pareto_optimal
-				_df = pareto_optimal_params(_df, map(x->Symbol(string(x)*"_mean"), metrics))
-			end
+			#if pareto_optimal
+			#	_df = pareto_optimal_params(_df, map(x->Symbol(string(x)*"_mean"), metrics))
+			#end
 			merge_param_cols!(_df)
 			drop_cols!(_df)
 			push!(aggregdfs, _df)
