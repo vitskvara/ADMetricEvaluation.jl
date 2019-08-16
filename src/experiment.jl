@@ -59,39 +59,69 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 
 		# now compute the needed metrics
 		# auc-based
-		metric_vals = DataFrame() # auc, weighted auc, auc@5, auc@1, precision@k, tpr@fpr, vol@fpr
+		resvec = Array{Any,1}()
+		metric_vals = DataFrame(
+						:auc=>Float64[],
+						:auc_weighted=>Float64[],
+						:auc_at_1=>Float64[],
+						:auc_at_5=>Float64[],
+						:prec_at_1=>Float64[],
+						:prec_at_5=>Float64[],
+						:tpr_at_1=>Float64[],
+						:tpr_at_5=>Float64[],
+						:vol_at_1=>Float64[],
+						:vol_at_5=>Float64[],
+						:f1_at_1=>Float64[],
+						:f1_at_5=>Float64[]
+						)
 		fprvec, tprvec = EvalCurves.roccurve(scores, y_test)
-		metric_vals[:auc] = EvalCurves.auc(fprvec, tprvec)
-		metric_vals[:auc_weighted] = EvalCurves.auc(fprvec, tprvec, "1/x")
-		metric_vals[:auc_at_5] = EvalCurves.auc_at_p(fprvec,tprvec,0.05; normalize = true)
-		metric_vals[:auc_at_1] = EvalCurves.auc_at_p(fprvec,tprvec,0.01; normalize = true)
+		push!(resvec, EvalCurves.auc(fprvec, tprvec))
+		push!(resvec, EvalCurves.auc(fprvec, tprvec, "1/x"))
+		push!(resvec, EvalCurves.auc_at_p(fprvec,tprvec,0.01; normalize = true))
+		push!(resvec, EvalCurves.auc_at_p(fprvec,tprvec,0.05; normalize = true))
 		
 		# instead of precision@k we will compute precision@p
-		metric_vals[:prec_at_5] = precision_at_p(score_fun, X_test, y_test, 0.05)
-		metric_vals[:prec_at_1] = precision_at_p(score_fun, X_test, y_test, 0.01)
+		push!(resvec, precision_at_p(score_fun, X_test, y_test, 0.01))
+		push!(resvec, precision_at_p(score_fun, X_test, y_test, 0.05))
 
 		# tpr@fpr
-		metric_vals[:tpr_at_5] = EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.05)
-		metric_vals[:tpr_at_1] = EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.01)
+		push!(resvec, EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.01))
+		push!(resvec, EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.05))
 		
 		# volume of the anomalous samples
 		X = hcat(X_train, X_test)
 		bounds = EvalCurves.estimate_bounds(X)
-		for (fpr, label) in [(0.05, :vol_at_5), (0.01, :vol_at_1)]
-			threshold = EvalCurves.threshold_at_fpr(scores, y_test, fpr; warn = false)
-			vf() = EvalCurves.volume_at_fpr(threshold, bounds, score_fun, mc_volume_iters)
+		for (fpr, label) in [(0.01, :vol_at_1), (0.05, :vol_at_5)]
+			threshold = EvalCurves.threshold_at_fpr(scores, y_test, fpr; warns = false)
+			vf() = EvalCurves.volume_at_threshold(threshold, bounds, score_fun, mc_volume_iters)
 			
-			metric_vals[label] = 1-EvalCurves.mc_volume_estimate(vf, mc_volume_repeats)
+			push!(resvec, 1-EvalCurves.mc_volume_estimate(vf, mc_volume_repeats))
 		end
 
+		# f1@alpha
+		push!(resvec, EvalCurves.f1_at_fpr(scores, y_test, 0.01; warns=false))
+		push!(resvec, EvalCurves.f1_at_fpr(scores, y_test, 0.05; warns=false))
+		
+
 		if fpr_10
-			metric_vals[:auc_at_10] = EvalCurves.auc_at_p(fprvec,tprvec,0.1; normalize = true)
-			metric_vals[:prec_at_10] = precision_at_p(score_fun, X_test, y_test, 0.1)
-			metric_vals[:tpr_at_10] = EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.1)
-			threshold = EvalCurves.threshold_at_fpr(scores, y_test, 0.1; warn = false)
-			vf() = EvalCurves.volume_at_fpr(threshold, bounds, score_fun, mc_volume_iters)
-			metric_vals[:vol_at_10] = 1-EvalCurves.mc_volume_estimate(vf, mc_volume_repeats)
+			df = DataFrame(
+					:auc_at_10=>Float64[],
+					:prec_at_10=>Float64[],
+					:tpr_at_10=>Float64[],
+					:vol_at_10=>Float64[],
+					:f1_at_10=>Float64[]
+					)
+			metric_vals = hcat(metric_vals, df)
+			push!(resvec, EvalCurves.auc_at_p(fprvec,tprvec,0.1; normalize = true))
+			push!(resvec, precision_at_p(score_fun, X_test, y_test, 0.1))
+			push!(resvec, EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.1))
+			threshold = EvalCurves.threshold_at_fpr(scores, y_test, 0.1; warns = false)
+			vf() = EvalCurves.volume_at_threshold(threshold, bounds, score_fun, mc_volume_iters)
+			push!(resvec, 1-EvalCurves.mc_volume_estimate(vf, mc_volume_repeats))
+			push!(resvec, EvalCurves.f1_at_fpr(scores, y_test, 0.1; warns=false))
 		end
+
+		push!(metric_vals, resvec)
 			
 		return metric_vals
 	catch e
@@ -100,7 +130,7 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 			println(e)
 			println("")
 		else
-			throw(e)
+			rethrow(e)
 		end
 		if fpr_10
 			return DataFrame(:auc=>NaN, :auc_weighted=>NaN, :auc_at_5=>NaN, 
