@@ -133,15 +133,40 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 			rethrow(e)
 		end
 		if fpr_10
-			return DataFrame(:auc=>NaN, :auc_weighted=>NaN, :auc_at_5=>NaN, 
-				:auc_at_1=>NaN, :prec_at_5=>NaN, :prec_at_1=>NaN, :tpr_at_5=>NaN,
-				:tpr_at_1=>NaN, :vol_at_5=>NaN, :vol_at_1=>NaN,
-				:auc_at_10 => NaN, :prec_at_10 => NaN, :tpr_at_10 => NaN,
-				:vol_at_10 => NaN)
+			return DataFrame(
+						:auc=>NaN,
+						:auc_weighted=>NaN,
+						:auc_at_1=>NaN,
+						:auc_at_5=>NaN,
+						:prec_at_1=>NaN,
+						:prec_at_5=>NaN,
+						:tpr_at_1=>NaN,
+						:tpr_at_5=>NaN,
+						:vol_at_1=>NaN,
+						:vol_at_5=>NaN,
+						:f1_at_1=>NaN,
+						:f1_at_5=>NaN,
+						:auc_at_10=>NaN,
+						:prec_at_10=>NaN,
+						:tpr_at_10=>NaN,
+						:vol_at_10=>NaN,
+						:f1_at_10=>NaN
+						)
 		else
-			return DataFrame(:auc=>NaN, :auc_weighted=>NaN, :auc_at_5=>NaN, 
-				:auc_at_1=>NaN, :prec_at_5=>NaN, :prec_at_1=>NaN, :tpr_at_5=>NaN,
-				:tpr_at_1=>NaN, :vol_at_5=>NaN, :vol_at_1=>NaN)
+			return DataFrame(
+						:auc=>NaN,
+						:auc_weighted=>NaN,
+						:auc_at_1=>NaN,
+						:auc_at_5=>NaN,
+						:prec_at_1=>NaN,
+						:prec_at_5=>NaN,
+						:tpr_at_1=>NaN,
+						:tpr_at_5=>NaN,
+						:vol_at_1=>NaN,
+						:vol_at_5=>NaN,
+						:f1_at_1=>NaN,
+						:f1_at_5=>NaN
+						)
 		end
 	end
 end
