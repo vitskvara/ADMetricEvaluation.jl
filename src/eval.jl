@@ -3,40 +3,40 @@ matrix_col_nan_mean(X) =
 	map(i->ADMetricEvaluation.nan_mean(X[i,:]), 1:size(X,1))
 
 function average_over_folds(df)
-	if df[:model][1] == "IF"
+	if df[!,:model][1] == "IF"
 		return aggregate(df, [:dataset, :model, :num_estimators], Statistics.mean)
-	elseif df[:model][1] == "LOF"
+	elseif df[!,:model][1] == "LOF"
 		return aggregate(df, [:dataset, :model, :num_neighbors], Statistics.mean)
-	elseif df[:model][1] == "OCSVM"
+	elseif df[!,:model][1] == "OCSVM"
 		return aggregate(df, [:dataset, :model, :gamma], Statistics.mean)
-	elseif df[:model][1] == "kNN"
+	elseif df[!,:model][1] == "kNN"
 		return aggregate(df, [:dataset, :model, :metric, :k], Statistics.mean)
 	end
 end
 
 function drop_cols!(df)
-	if df[:model][1] == "IF"
-		deletecols!(df, :num_estimators)
-	elseif df[:model][1] == "LOF"
-		deletecols!(df, :num_neighbors)
-	elseif df[:model][1] == "OCSVM"
-		deletecols!(df, :gamma)
-	elseif df[:model][1] == "kNN"
-		deletecols!(df, :metric)
-		deletecols!(df, :k)	
+	if df[!,:model][1] == "IF"
+		df = select!(df, Not(:num_estimators))
+	elseif df[!,:model][1] == "LOF"
+		df = select!(df, Not(:num_neighbors))
+	elseif df[!,:model][1] == "OCSVM"
+		df = select!(df, Not(:gamma))
+	elseif df[!,:model][1] == "kNN"
+		df = select!(df, Not(:metric))
+		df = select!(df, Not(:k))
 	end
 end
 
 function merge_param_cols!(df)
-	if df[:model][1] == "IF"
-		col = "num_estimators=".*string.(df[:num_estimators])
-	elseif df[:model][1] == "LOF"
-		col = "num_neighbors=".*string.(df[:num_neighbors])
-	elseif df[:model][1] == "OCSVM"
-		col = "gamma=".*string.(df[:gamma])
-	elseif df[:model][1] == "kNN"
-		col = "metric=".*string.(df[:metric])
-		col = col.*" k=".*string.(df[:k])
+	if df[!,:model][1] == "IF"
+		col = "num_estimators=".*string.(df[!,:num_estimators])
+	elseif df[!,:model][1] == "LOF"
+		col = "num_neighbors=".*string.(df[!,:num_neighbors])
+	elseif df[!,:model][1] == "OCSVM"
+		col = "gamma=".*string.(df[!,:gamma])
+	elseif df[!,:model][1] == "kNN"
+		col = "metric=".*string.(df[!,:metric])
+		col = col.*" k=".*string.(df[!,:k])
 	end
 	insertcols!(df, 3, :params=>col)
 end
@@ -48,21 +48,21 @@ function loaddata(dataset::String, path; allsubdatasets=true)
 	end
 	map(x->CSV.read(joinpath(path, dataset, x)), subdatasets)
 end
-subdatasets(dataframe_list::Array{DataFrame,1}) = unique([df[:dataset][1] for df in dataframe_list]) 
+subdatasets(dataframe_list::Array{DataFrame,1}) = unique([df[!,:dataset][1] for df in dataframe_list]) 
 mergeds(df_list::Array{DataFrame,1}, metrics::Array{Symbol, 1}) = 
-	vcat(map(x->x[vcat([:dataset, :model], metrics)], df_list)...)
+	vcat(map(x->x[!,vcat([:dataset, :model], metrics)], df_list)...)
 mergesubd(name::String, df_list::Array{DataFrame,1}, metrics::Array{Symbol, 1}) = 
-	mergeds(filter(x->x[:dataset][1]==name,df_list), metrics)
+	mergeds(filter(x->x[!,:dataset][1]==name,df_list), metrics)
 mergesubd(names::Array{String,1}, df_list::Array{DataFrame,1}, metrics::Array{Symbol, 1}) = 
-	mergeds(filter(x->x[:dataset][1] in names,df_list), metrics)
-filter_string_by_beginning(x::String, master::String) = (length(x) < length(master)) ? false : (x[1:length(master)]==master)
+	mergeds(filter(x->x[!,:dataset][1] in names,df_list), metrics)
+filter_string_by_beginning(x::String, master::String) = (length(x) < length(master)) ? false : (x[!,1:length(master)]==master)
 filter_string_by_beginnings(x::String, masters::Array{String,1}) = any(map(y->filter_string_by_beginning(x,y),masters))
 function load_all_by_model(data_path, model)
 	datasets = readdir(data_path)
 	dfs = []
 	for dataset in datasets
 		_dfs = loaddata(dataset, data_path)
-		_dfs = filter(x->x[:model][1]==model, _dfs)
+		_dfs = filter(x->x[!,:model][1]==model, _dfs)
 		push!(dfs, vcat(_dfs...))
 	end
 	dfs = filter(x->size(x,1)!=0, dfs)
@@ -107,9 +107,8 @@ end
 function rank_models(data_path::String; 
 	metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, :vol_at_5],
 	models = ["kNN", "IF", "LOF", "OCSVM"]
-	# pareto_optimal = false
 	)
-	# first get the aggregated collection of all data
+	# first get the aggregated collection of all data - means over params
 	datasets = readdir(data_path)
 	res = []
 	for dataset in datasets
@@ -117,39 +116,31 @@ function rank_models(data_path::String;
 		aggregdfs = []
 		for df in dfs
 			_df = average_over_folds(df)
-			#if pareto_optimal
-			#	_df = pareto_optimal_params(_df, map(x->Symbol(string(x)*"_mean"), metrics))
-			#end
 			merge_param_cols!(_df)
 			drop_cols!(_df)
 			push!(aggregdfs, _df)
 		end
 		push!(res, vcat(aggregdfs...))
 	end
-#	if !pareto_optimal
-#		alldf = aggregate(vcat(res...), [:dataset, :model], maximum)
-#	else
-	alldf = vcat(res...)
-#	end
+	# now join this into one df and find the maximum on a dataset and model - the best params
+	alldf = aggregate(vcat(res...), [:dataset, :model], maximum)
 
-	datasets = unique(alldf[:dataset])
+	datasets = unique(alldf[!,:dataset])
+	# in this df the ranks are going to be computed
 	rankdf = DataFrame(:dataset=>String[], :metric=>Any[], :kNN=>Float64[], :LOF=>Float64[],
 		:IF=>Float64[], :OCSVM=>Float64[])
 	for dataset in datasets
-		#if pareto_optimal
-		#	aggmetrics = map(x->Symbol(string(x)*"_mean"), metrics)
-		#else
 		aggmetrics = map(x->Symbol(string(x)*"_mean_maximum"), metrics)
-		#end
+		i=0
 		for metric in aggmetrics  
-			vals = alldf[alldf[:dataset].==dataset, [:model, metric]]
-			vals[:rank]=rankvals(vals[metric])
+			vals = alldf[alldf[!,:dataset].==dataset, [:model, metric]]
+			vals[!,:rank]=rankvals(vals[!,metric])
 			try
 				push!(rankdf, [dataset, metric, 
-					vals[:rank][vals[:model].=="kNN"][1],
-					vals[:rank][vals[:model].=="LOF"][1],
-					vals[:rank][vals[:model].=="IF"][1],
-					vals[:rank][vals[:model].=="OCSVM"][1]
+					vals[!,:rank][vals[!,:model].=="kNN"][1],
+					vals[!,:rank][vals[!,:model].=="LOF"][1],
+					vals[!,:rank][vals[!,:model].=="IF"][1],
+					vals[!,:rank][vals[!,:model].=="OCSVM"][1]
 					])
 			catch
 				nothing
@@ -185,8 +176,9 @@ function rankvals(x::Vector, rev=true)
 end
 
 
-function model_ranks_stats(data_path, metrics=[:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1,
-:tpr_at_1, :vol_at_1])
+function model_ranks_stats(data_path, 
+	metrics=[:auc, :auc_weighted, :auc_at_5, :prec_at_5, :tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1,
+	:tpr_at_1, :vol_at_1])
 	rankdf, alldf = rank_models(data_path, metrics = metrics)
 
 	Nm = length(metrics)
@@ -200,12 +192,12 @@ function model_ranks_stats(data_path, metrics=[:auc, :auc_weighted, :auc_at_5, :
 		mus = []
 		sds = []
 		for model in [:kNN, :LOF, :IF, :OCSVM]
-			x = rankdf[model][rankdf[:metric].==metric]
+			x = rankdf[!,model][rankdf[!,:metric].==metric]
 			mu=Statistics.mean(x)
 			std=Statistics.std(x)
 			push!(mus, mu)
 			push!(sds, std)
-			plt[:hist](x, 20, label=string(model), alpha=1, histtype="step")
+			plt.hist(x, 20, label=string(model), alpha=1, histtype="step")
 		end
 		push!(ranks_mean, vcat([string(metric)], mus))
 		push!(ranks_sd, vcat([string(metric)], sds))
@@ -220,15 +212,15 @@ stripnans(x) = x[.!isnan.(x)]
 # now create a list of dataframes that contain rows from the alldf
 # where a given measure is maximum and the rest is left as is
 function collect_rows(alldf, metric, metrics)
-	datasets = unique(alldf[:dataset])
-	models = unique(alldf[:model])
+	datasets = unique(alldf[!,:dataset])
+	models = unique(alldf[!,:model])
 	df = DataFrame(:dataset=>String[], :model=>String[], :params=>String[])
 	for m in metrics
 		df[m] = Float64[]
 	end
 	for dataset in datasets
 		for model in models
-			subdf = alldf[(alldf[:dataset].==dataset) .& (alldf[:model].==model), :]
+			subdf = alldf[(alldf[!,:dataset].==dataset) .& (alldf[!,:model].==model), :]
 			x = subdf[metric]
 			inds = .!isnan.(x) 
 			#inds = 1:length(x)

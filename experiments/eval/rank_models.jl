@@ -28,7 +28,7 @@ for dataset in unique(rankdf[:dataset])
 	mse = sum((x1.-x2).^2)/length(x1)
 	push!(df1, [dataset, mse])
 end
-#println(df1)
+println(df1)
 
 df2 = DataFrame(:dataset=>String[], :mse=>Float64[])
 println("AUC x AUCw")
@@ -39,4 +39,4 @@ for dataset in unique(rankdf[:dataset])
 	mse = sum((x1.-x2).^2)/length(x1)
 	push!(df2, [dataset, mse])
 end
-#println(df2)
+println(df2)

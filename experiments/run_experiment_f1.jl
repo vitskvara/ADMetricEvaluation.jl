@@ -67,16 +67,26 @@ mc_volume_iters = parsed_args["mc-volume-iters"]
 mc_volume_repeats = 10
 
 # models
+default_model_names = ["kNN", "LOF", "OCSVM", "IF"]
 models = [kNN_model, LOF_model, OCSVM_model, IF_model]
-if model_names == [""]
-	global model_names = ["kNN", "LOF", "OCSVM", "IF"]
-end
 param_struct = [
-				([[1, 3, 5, 7, 9, 13, 21, 31, 51], [:gamma, :kappa, :delta]], [:k,:metric]),
-			 	([[10, 20, 50]], [:num_neighbors]),
-			 	([[0.01 0.05 0.1 0.5 1. 5. 10. 50. 100.]], [:gamma]),
-			 	([[50 100 200]], [:num_estimators]),
-			 ]
+                ([[1, 3, 5, 7, 9, 13, 21, 31, 51], [:gamma, :kappa, :delta]], [:k,:metric]),
+                ([[10, 20, 50]], [:num_neighbors]),
+                ([[0.01 0.05 0.1 0.5 1. 5. 10. 50. 100.]], [:gamma]),
+                ([[50 100 200]], [:num_estimators]),
+             ]
+if model_names == [""]
+	global model_names = default_model_names
+end
+# now select the functions, names and params of the actually used models
+modelis = map(x->x in model_names, default_model_names)
+model_names = Array(default_model_names[modelis])
+models = Array(models[modelis])
+param_struct = Array(param_struct[modelis])
+println(model_names)
+println(models)
+println(param_struct)
+
 if parsed_args["umap"]
 	global experiment_fun = ADME.run_umap_experiment
 else	

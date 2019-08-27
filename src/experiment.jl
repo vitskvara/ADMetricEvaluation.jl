@@ -26,6 +26,9 @@ function precision_at_p(score_fun, X, y, p::Real; seed = nothing, verb = false)
 	return EvalCurves.precision_at_k(scores, vcat(y[y.==0], y[y.==1][inds_sampled]), k)
 end
 
+mean_precision_at_p(score_fun, X, y, p::Real; n::Int=10, kwargs...) = 
+	Statistics.mean(map(i->precision_at_p(score_fun, X, y, p; kwargs...), 1:n))
+
 """
 	clusterdness(X,y)
 
@@ -81,8 +84,9 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 		push!(resvec, EvalCurves.auc_at_p(fprvec,tprvec,0.05; normalize = true))
 		
 		# instead of precision@k we will compute precision@p
-		push!(resvec, precision_at_p(score_fun, X_test, y_test, 0.01))
-		push!(resvec, precision_at_p(score_fun, X_test, y_test, 0.05))
+
+		push!(resvec, mean_precision_at_p(score_fun, X_test, y_test, 0.01))
+		push!(resvec, mean_precision_at_p(score_fun, X_test, y_test, 0.05))
 
 		# tpr@fpr
 		push!(resvec, EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.01))
@@ -113,11 +117,11 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 					)
 			metric_vals = hcat(metric_vals, df)
 			push!(resvec, EvalCurves.auc_at_p(fprvec,tprvec,0.1; normalize = true))
-			push!(resvec, precision_at_p(score_fun, X_test, y_test, 0.1))
+			push!(resvec, mean_precision_at_p(score_fun, X_test, y_test, 0.1))
 			push!(resvec, EvalCurves.tpr_at_fpr(fprvec, tprvec, 0.1))
 			threshold = EvalCurves.threshold_at_fpr(scores, y_test, 0.1; warns = false)
-			vf() = EvalCurves.volume_at_threshold(threshold, bounds, score_fun, mc_volume_iters)
-			push!(resvec, 1-EvalCurves.mc_volume_estimate(vf, mc_volume_repeats))
+			vf10() = EvalCurves.volume_at_threshold(threshold, bounds, score_fun, mc_volume_iters)
+			push!(resvec, 1-EvalCurves.mc_volume_estimate(vf10, mc_volume_repeats))
 			push!(resvec, EvalCurves.f1_at_fpr(scores, y_test, 0.1; warns=false))
 		end
 
