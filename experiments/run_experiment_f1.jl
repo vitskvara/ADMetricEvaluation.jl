@@ -83,9 +83,6 @@ modelis = map(x->x in model_names, default_model_names)
 model_names = Array(default_model_names[modelis])
 models = Array(models[modelis])
 param_struct = Array(param_struct[modelis])
-println(model_names)
-println(models)
-println(param_struct)
 
 if parsed_args["umap"]
 	global experiment_fun = ADME.run_umap_experiment
