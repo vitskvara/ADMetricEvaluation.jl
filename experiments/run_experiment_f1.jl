@@ -43,10 +43,7 @@ tr_contamination = parsed_args["train-contamination"]
 model_names = parsed_args["models"]
 tst_contamination = (parsed_args["test-contamination"] == -1) ? nothing : parsed_args["test-contamination"]
 
-#using Plots
-#plotly()
 include("models.jl")
-
 
 # setup the path
 host = gethostname()
@@ -54,7 +51,7 @@ if host == "vit-ThinkPad-E470"
 	global outpath = joinpath("/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/",outpath)
 elseif host == "axolotl.utia.cas.cz"
 	global outpath = joinpath("/home/skvara/work/anomaly_detection/data/metric_evaluation/",outpath)
-elseif host == "soroban-node-03"
+elseif occursin("soroban",host)
 	global outpath = joinpath("/compass/home/skvara/anomaly_detection/data/metric_evaluation/", outpath)
 end
 mkpath(outpath)

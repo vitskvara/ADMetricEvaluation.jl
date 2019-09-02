@@ -78,7 +78,7 @@ function collect_all_data(data_path; aggreg_f = nothing,
 		dfs = loaddata(dataset, data_path)
 		map(merge_param_cols!, dfs)
 		df = mergeds(dfs, vcat([:params, :iteration], metrics)) 
-		map(x->df[x]=Float64.(df[x]), metrics)
+		map(x->df[!,x]=Float64.(df[!,x]), metrics)
 		if aggreg_f == nothing
 			push!(res, df)
 		else
@@ -383,14 +383,14 @@ function compare_measures(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, 
 end
 
 function collect_rows_model_is_parameter(alldf, metric, metrics)
-	datasets = unique(alldf[:dataset])
+	datasets = unique(alldf[!,:dataset])
 	df = DataFrame(:dataset=>String[], :model=>String[], :params=>String[])
 	for m in metrics
-		df[m] = Float64[]
+		df[!,m] = Float64[]
 	end
 	for dataset in datasets
-		subdf = alldf[(alldf[:dataset].==dataset), :]
-		x = subdf[metric]
+		subdf = alldf[(alldf[!,:dataset].==dataset), :]
+		x = subdf[!,metric]
 		inds = .!isnan.(x) 
 		#inds = 1:length(x)
 		x = x[inds]
@@ -419,9 +419,9 @@ function compare_measures_model_is_parameter(data_path, metrics =
 	
 	# now create a set of tables that represent the mean loss and its variance in measure values 
 	# when maximising by a another measure
-	means = Dict(zip(metrics, map(x->Statistics.mean(measure_dict[x][x][.!isnan.(measure_dict[x][x])]), metrics)))
+	means = Dict(zip(metrics, map(x->Statistics.mean(measure_dict[x][!,x][.!isnan.(measure_dict[x][!,x])]), metrics)))
 	mean_diff = DataFrame(:measure=>Symbol[])
-	map(x->mean_diff[x] = Float64[], metrics)
+	map(x->mean_diff[!,x] = Float64[], metrics)
 	sd_diff = deepcopy(mean_diff)
 	for metric_row in metrics
 		mean_row = Array{Any,1}()
@@ -429,8 +429,8 @@ function compare_measures_model_is_parameter(data_path, metrics =
 		push!(mean_row, metric_row)
 		push!(sd_row, metric_row)
 		for metric_column in metrics
-			x1 = measure_dict[metric_row][metric_column] # available value = row
-			x2 = measure_dict[metric_column][metric_column] # true maximum = column
+			x1 = measure_dict[metric_row][!,metric_column] # available value = row
+			x2 = measure_dict[metric_column][!,metric_column] # true maximum = column
 			push!(mean_row, Statistics.mean(stripnans(x2.-x1)))
 			push!(sd_row, Statistics.std(stripnans(x2.-x1)))
 		end
@@ -439,9 +439,9 @@ function compare_measures_model_is_parameter(data_path, metrics =
 	end
 	# compute the relative losses
 	rel_mean_diff = deepcopy(mean_diff)
-	map(x->rel_mean_diff[x]=rel_mean_diff[x]/means[x],metrics)
+	map(x->rel_mean_diff[!,x]=rel_mean_diff[!,x]/means[x],metrics)
 	rel_sd_diff = deepcopy(sd_diff)
-	map(x->rel_sd_diff[x]=rel_sd_diff[x]/means[x],metrics)
+	map(x->rel_sd_diff[!,x]=rel_sd_diff[!,x]/means[x],metrics)
  
 	# histogram plots
 	#nm = length(metrics)
@@ -576,14 +576,14 @@ end
 function dataset_measure_correlations(alldf, dataset, measures; correlation="kendall")
 	subdf = @linq alldf |> where(:dataset .== dataset)
 	cordf = DataFrame(:measure=>String[])
-	map(x->cordf[x]=Float64[], measures)
+	map(x->cordf[!,x]=Float64[], measures)
 	for rowm in measures
 		row = Array{Any,1}()
 		push!(row, String(rowm))
-		x = subdf[rowm]
+		x = subdf[!,rowm]
 		for colm in measures
 			r = NaN
-			y = subdf[colm]
+			y = subdf[!,colm]
 			is=.!(isnan.(x) .| isnan.(y))
 			_x=x[is]
 			_y=y[is]
@@ -610,12 +610,12 @@ function global_measure_correlation(data_path, measures =
 		map(x->rename!(alldf, Symbol(string(x)*"_mean")=>x), measures)
 	end
 	
-	datasets = unique(alldf[:dataset])
+	datasets = unique(alldf[!,:dataset])
 	# for every dataset, create the correlation table
 
 	cordfs = map(x->dataset_measure_correlations(alldf, x, measures; correlation = correlation), 
 		datasets)
-	corarr = cat(map(x->convert(Matrix, x[measures]), cordfs)..., dims=3)
+	corarr = cat(map(x->convert(Matrix, x[!,measures]), cordfs)..., dims=3)
 	cordfmean = deepcopy(cordfs[1])
 	for (i,rowm) in enumerate(measures)
 		for (j,colm) in enumerate(measures)
