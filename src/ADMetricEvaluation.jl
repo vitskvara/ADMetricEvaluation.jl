@@ -17,6 +17,8 @@ using PyPlot
 using Printf
 using NearestNeighbors
 using LinearAlgebra
+using GaussianMixtures
+using Suppressor
 
 const Float = Float32
 
@@ -24,5 +26,6 @@ include("experiment.jl")
 include("kNN.jl")
 include("eval.jl")
 include("plots.jl")
+include("robust_measures.jl")
 
 end # module
