@@ -59,13 +59,18 @@ end
     model = kNN_model(5, :gamma)
     ScikitLearn.fit!(model, Array(transpose(X_tr)))
 	sf(X) = -ScikitLearn.decision_function(model, Array(transpose(X)))
-	auc = EvalCurves.auc(EvalCurves.roccurve(sf(X_tst), y_tst))
-	mf = EvalCurves.auc
-	bs_auc = ADME.bootstrapped_measure(sf, mf, X_tst, y_tst, 100)
-	@test abs(auc-bs_auc) < 0.01
-	
+	roc = EvalCurves.roccurve(sf(X_tst), y_tst)
+	auc = EvalCurves.auc(roc...)
+	pauc = EvalCurves.auc_at_p(roc..., 0.1)
+	bs_auc = ADME.bootstrapped_measure(sf, EvalCurves.auc, X_tst, y_tst, 100)
+	@test abs(auc-bs_auc) < 0.02
+	bs_pauc = ADME.bootstrapped_measure(sf, (x,y)->EvalCurves.auc_at_p(x, y, 0.1), X_tst, y_tst, 100)
+	@test abs(pauc-bs_pauc) < 0.002
+
 	rocs_gmm = ADME.fit_gmms_sample_rocs(sf(X_tst), y_tst, 100, 3)
 	# also test other cases where the last argument is present
-	gmm_auc = ADME.gmm_bootstrapped_measure(rocs_gmm, mf)
-	@test abs(auc-gmm_auc) < 0.01
+	gmm_auc = ADME.measure_mean(rocs_gmm, EvalCurves.auc)
+	@test abs(auc-gmm_auc) < 0.02
+	gmm_pauc = ADME.measure_mean(rocs_gmm, (x,y)->EvalCurves.auc_at_p(x, y, 0.1))
+	@test abs(pauc-gmm_pauc) < 0.002
 end

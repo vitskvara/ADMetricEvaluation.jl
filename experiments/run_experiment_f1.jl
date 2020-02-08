@@ -35,6 +35,9 @@ s = ArgParseSettings()
     	arg_type = Int
     	default = 10000
     	help = "number of MC samples for the enclosed volume computation"
+    "--robust-measures"
+        action = :store_true
+        help = "compute robust measures"
 end
 parsed_args = parse_args(ARGS, s)
 dataset = parsed_args["dataset"]
@@ -42,6 +45,7 @@ outpath = parsed_args["outpath"]
 tr_contamination = parsed_args["train-contamination"]
 model_names = parsed_args["models"]
 tst_contamination = (parsed_args["test-contamination"] == -1) ? nothing : parsed_args["test-contamination"]
+robust_measures = parsed_args["robust-measures"]
 
 include("models.jl")
 
@@ -94,5 +98,6 @@ end
 	mc_volume_iters = mc_volume_iters, 
 	mc_volume_repeats = mc_volume_repeats, 
 	standardize=true,
-	test_contamination = tst_contamination 
+	test_contamination = tst_contamination,
+    robust_measures = robust_measures
 	)

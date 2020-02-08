@@ -52,7 +52,7 @@ Basic one experiment function.
 """
 function experiment(model, parameters, X_train, y_train, X_test, y_test;
 	mc_volume_iters::Int = 100000, mc_volume_repeats::Int = 10,
-	fpr_10 = false)
+	fpr_10 = false, robust_measures = false)
 	# create and fit the model and produce anomaly scores
 	m = model(parameters...)
 	try
@@ -84,7 +84,6 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 		push!(resvec, EvalCurves.auc_at_p(fprvec,tprvec,0.05; normalize = true))
 		
 		# instead of precision@k we will compute precision@p
-
 		push!(resvec, mean_precision_at_p(score_fun, X_test, y_test, 0.01))
 		push!(resvec, mean_precision_at_p(score_fun, X_test, y_test, 0.05))
 
@@ -104,8 +103,7 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 
 		# f1@alpha
 		push!(resvec, EvalCurves.f1_at_fpr(scores, y_test, 0.01; warns=false))
-		push!(resvec, EvalCurves.f1_at_fpr(scores, y_test, 0.05; warns=false))
-		
+		push!(resvec, EvalCurves.f1_at_fpr(scores, y_test, 0.05; warns=false))	
 
 		if fpr_10
 			df = DataFrame(
@@ -125,6 +123,60 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 			push!(resvec, EvalCurves.f1_at_fpr(scores, y_test, 0.1; warns=false))
 		end
 
+		if robust_measures
+			metric_vals = hcat(metric_vals,
+				DataFrame(
+					:auc_bs=>Float64[],
+					:auc_at_1_bs=>Float64[],
+					:tpr_at_1_bs=>Float64[],
+					:auc_at_5_bs=>Float64[],
+					:tpr_at_5_bs=>Float64[],
+					:auc_gmm=>Float64[],
+					:auc_at_1_gmm=>Float64[],
+					:tpr_at_1_gmm=>Float64[],
+					:auc_at_5_gmm=>Float64[],
+					:tpr_at_5_gmm=>Float64[],
+					:auc_gmm_5000=>Float64[],
+					:auc_at_1_gmm_5000=>Float64[],
+					:tpr_at_1_gmm_5000=>Float64[],
+					:auc_at_5_gmm_5000=>Float64[],
+					:tpr_at_5_gmm_5000=>Float64[]
+					))
+
+			N_samples = 1000
+			# first compute the normal bootstrapping estimate
+			push!(resvec, bootstrapped_measure(score_fun, EvalCurves.auc, 
+				X_test, y_test, N_samples))
+			push!(resvec, bootstrapped_measure(score_fun, 
+				(x,y)->EvalCurves.auc_at_p(x,y,0.01; normalize = true), 
+				X_test, y_test, N_samples))
+			push!(resvec, bootstrapped_measure(score_fun, 
+				(x,y)->EvalCurves.tpr_at_fpr(x,y,0.01), X_test, y_test, N_samples))
+			push!(resvec, bootstrapped_measure(score_fun, 
+				(x,y)->EvalCurves.auc_at_p(x,y,0.05; normalize = true), 
+				X_test, y_test, N_samples))
+			push!(resvec, bootstrapped_measure(score_fun, 
+				(x,y)->EvalCurves.tpr_at_fpr(x,y,0.05), X_test, y_test, N_samples))
+
+			# gmm bootstrapping
+			# first do it by sampling the same number of positive and negative samples
+			# as in the original test set
+			rocs_gmm = fit_gmms_sample_rocs(score_fun(X_test), y_test, N_samples, 3)
+			push!(resvec, measure_mean(rocs_gmm, EvalCurves.auc))
+			push!(resvec, measure_mean(rocs_gmm, (x,y)->EvalCurves.auc_at_p(x,y, 0.01; normalize = true)))
+			push!(resvec, measure_mean(rocs_gmm, (x,y)->EvalCurves.tpr_at_fpr(x,y, 0.01)))
+			push!(resvec, measure_mean(rocs_gmm, (x,y)->EvalCurves.auc_at_p(x,y, 0.05; normalize = true)))
+			push!(resvec, measure_mean(rocs_gmm, (x,y)->EvalCurves.tpr_at_fpr(x,y, 0.05)))
+			# now again, but this time sample a lot more 
+			rocs_gmm = fit_gmms_sample_rocs(score_fun(X_test), y_test, N_samples, 3,
+				5000)
+			push!(resvec, measure_mean(rocs_gmm, EvalCurves.auc))
+			push!(resvec, measure_mean(rocs_gmm, (x,y)->EvalCurves.auc_at_p(x,y, 0.01; normalize = true)))
+			push!(resvec, measure_mean(rocs_gmm, (x,y)->EvalCurves.tpr_at_fpr(x,y, 0.01)))
+			push!(resvec, measure_mean(rocs_gmm, (x,y)->EvalCurves.auc_at_p(x,y, 0.05; normalize = true)))
+			push!(resvec, measure_mean(rocs_gmm, (x,y)->EvalCurves.tpr_at_fpr(x,y, 0.05)))
+		end
+
 		push!(metric_vals, resvec)
 			
 		return metric_vals
@@ -136,28 +188,7 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 		else
 			rethrow(e)
 		end
-		if fpr_10
-			return DataFrame(
-						:auc=>NaN,
-						:auc_weighted=>NaN,
-						:auc_at_1=>NaN,
-						:auc_at_5=>NaN,
-						:prec_at_1=>NaN,
-						:prec_at_5=>NaN,
-						:tpr_at_1=>NaN,
-						:tpr_at_5=>NaN,
-						:vol_at_1=>NaN,
-						:vol_at_5=>NaN,
-						:f1_at_1=>NaN,
-						:f1_at_5=>NaN,
-						:auc_at_10=>NaN,
-						:prec_at_10=>NaN,
-						:tpr_at_10=>NaN,
-						:vol_at_10=>NaN,
-						:f1_at_10=>NaN
-						)
-		else
-			return DataFrame(
+		df = DataFrame(
 						:auc=>NaN,
 						:auc_weighted=>NaN,
 						:auc_at_1=>NaN,
@@ -171,7 +202,36 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 						:f1_at_1=>NaN,
 						:f1_at_5=>NaN
 						)
+		if fpr_10
+			df = hcat(df, DataFrame(
+						:auc_at_10=>NaN,
+						:prec_at_10=>NaN,
+						:tpr_at_10=>NaN,
+						:vol_at_10=>NaN,
+						:f1_at_10=>NaN
+						))
 		end
+		if robust_measures
+			df = hcat(df,
+				DataFrame(
+					:auc_bs=>NaN,
+					:auc_at_1_bs=>NaN,
+					:tpr_at_1_bs=>NaN,
+					:auc_at_5_bs=>NaN,
+					:tpr_at_5_bs=>NaN,
+					:auc_gmm=>NaN,
+					:auc_at_1_gmm=>NaN,
+					:tpr_at_1_gmm=>NaN,
+					:auc_at_5_gmm=>NaN,
+					:tpr_at_5_gmm=>NaN,
+					:auc_gmm_5000=>NaN,
+					:auc_at_1_gmm_5000=>NaN,
+					:tpr_at_1_gmm_5000=>NaN,
+					:auc_at_5_gmm_5000=>NaN,
+					:tpr_at_5_gmm_5000=>NaN
+					))
+		end
+		return df 
 	end
 end
 

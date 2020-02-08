@@ -39,7 +39,7 @@ function fit_gmms_sample_rocs(scores::Vector, y_test::Vector,
 	rocs = map(s->EvalCurves.roccurve(s, y_samples), scores)
 end
 
-gmm_bootstrapped_measure(rocs::Vector, measure::Function) = mean(map(r->measure(r...), rocs))
+measure_mean(rocs::Vector, measure::Function) = mean(map(r->measure(r...), rocs))
 
 # GMM component selection criterions
 # this tends to select 1 component
