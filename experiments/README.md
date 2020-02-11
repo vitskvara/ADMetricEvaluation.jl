@@ -14,3 +14,11 @@ Running multiple experiments in parallel:
 
 # Evaluation
 
+To produce ranking of models based on individual measures, run script `eval_paper/rank_tables.jl`.
+
+To compute correlation between measures, run `eval_paper/correlation_tables.jl`.
+
+To compare relative losses in model performance based on the base selection measure, run `eval_paper/measure_comaprison_tables.jl`.
+
+
+To compare how resistant a measure is to dicrepancy in test and train data set, run `eval_paper/multiclass_comparison.jl`.

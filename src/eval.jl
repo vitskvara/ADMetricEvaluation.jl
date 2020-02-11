@@ -78,6 +78,9 @@ function collect_all_data(data_path; aggreg_f = nothing,
 		dfs = loaddata(dataset, data_path)
 		map(merge_param_cols!, dfs)
 		df = mergeds(dfs, vcat([:params, :iteration], metrics)) 
+		if size(df,1) == 0
+			continue
+		end
 		map(x->df[!,x]=Float64.(df[!,x]), metrics)
 		if aggreg_f == nothing
 			push!(res, df)
@@ -114,7 +117,10 @@ function rank_models(data_path::String;
 	for dataset in datasets
 		dfs = loaddata(dataset, data_path)
 		aggregdfs = []
-		for df in dfs
+		for (i,df) in enumerate(dfs)
+			if size(df,1) == 0
+				continue
+			end
 			_df = average_over_folds(df)
 			merge_param_cols!(_df)
 			drop_cols!(_df)
@@ -123,7 +129,8 @@ function rank_models(data_path::String;
 		push!(res, vcat(aggregdfs...))
 	end
 	# now join this into one df and find the maximum on a dataset and model - the best params
-	alldf = aggregate(vcat(res...), [:dataset, :model], maximum)
+	alldf = vcat(filter(x->size(x,1)!=0,res)...) # in case some dir is empty
+	alldf = aggregate(alldf, [:dataset, :model], maximum)
 
 	datasets = unique(alldf[!,:dataset])
 	# in this df the ranks are going to be computed
@@ -249,6 +256,9 @@ function collect_fold_averages(data_path, metrics = [:auc, :auc_weighted, :auc_a
 		dfs = loaddata(dataset, data_path; allsubdatasets = allsubdatasets)
 		aggregdfs = []
 		for df in dfs
+			if size(df,1) == 0
+				continue
+			end
 			_df = average_over_folds(df)
 			#if pareto_optimal
 			#	_df = pareto_optimal_params(_df, map(x->Symbol(string(x)*"_mean"), metrics))
@@ -256,6 +266,9 @@ function collect_fold_averages(data_path, metrics = [:auc, :auc_weighted, :auc_a
 			merge_param_cols!(_df)
 			drop_cols!(_df)
 			push!(aggregdfs, _df)
+		end
+		if length(aggregdfs) == 0
+			continue
 		end
 		push!(res, vcat(aggregdfs...))
 	end
