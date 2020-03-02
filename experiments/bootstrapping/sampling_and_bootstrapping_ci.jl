@@ -47,6 +47,10 @@ dataset =  "sonar"
 difficulties = [:easy, :medium]
 # 91
 
+dataset =  "breast-cancer-wisconsin"
+difficulties = [:easy, :medium]
+# 91
+
 #data, normal_labels, anomaly_labels = UCI.get_data(dataset)
 #X_tr, y_tr, X_tst, y_tst = UCI.split_data(data, 0.8; seed = 123)
 
@@ -196,6 +200,14 @@ fprs = Array(0.01:0.005:0.99);
 gmm_tpr_means, gmm_tpr_cis = mean_and_ci(gmm_rocs, α, fprs, EvalCurves.tpr_at_fpr)
 gmm_pauc_means, gmm_pauc_cis = mean_and_ci(gmm_rocs, α, fprs, EvalCurves.auc_at_p)
 
+# also do GMM 1k
+N1 = N0 = 1000
+gmm_rocs_1k = [roc_from_samples(mix0, mix1, (N0, N1)) for _ in 1:N]
+gmm_auc_mean_1k, gmm_auc_ci_1k = mean_and_ci(gmm_rocs_1k, α, EvalCurves.auc)
+fprs = Array(0.01:0.005:0.99);
+gmm_tpr_means_1k, gmm_tpr_cis_1k = mean_and_ci(gmm_rocs_1k, α, fprs, EvalCurves.tpr_at_fpr)
+gmm_pauc_means_1k, gmm_pauc_cis_1k = mean_and_ci(gmm_rocs_1k, α, fprs, EvalCurves.auc_at_p)
+
 # do the plot
 xvec_hist = collect(range(minimum(scores), maximum(scores), length=1000));
 density0 = pdf(mix0, xvec_hist);
@@ -215,4 +227,67 @@ compare_cis(roc, auc, a, b, fprs, y_tst, scores, density0, density1,
 ff = joinpath(savepath, dataset*"_comparison.png")
 savefig(ff)
 
-# pack this nicely in a package and test it against the old measures
+# we can get CI smaller than Kerekes by adding more GMM samples
+# now add the analytical confidence intervals
+Np = sum(y_tst)
+α = 0.05
+analytical_tpr_cis = map(x->kerekes_ci(Np, x, α), bs_tpr_means)
+
+figure(figsize=(8,8))
+subplot(221)
+title("TPR@FPR")
+fill_between(fprs, [x[1] for x in bs_tpr_cis], [x[2] for x in bs_tpr_cis], alpha=0.3, label="BS")
+fill_between(fprs, [x[1] for x in gmm_tpr_cis], [x[2] for x in gmm_tpr_cis], alpha=0.3, label="GMM")
+fill_between(fprs, [x[1] for x in gmm_tpr_cis_1k], [x[2] for x in gmm_tpr_cis_1k], alpha=0.3, label="GMM-1k")
+fill_between(fprs, [x[1] for x in analytical_tpr_cis], [x[2] for x in analytical_tpr_cis], alpha=0.3, label="Kerekes")
+ylabel("TPR")
+legend(loc="lower right")
+
+subplot(223)
+plot(fprs, [x[2]-x[1] for x in bs_tpr_cis]./bs_tpr_means, label="BS")
+plot(fprs, [x[2]-x[1] for x in gmm_tpr_cis]./gmm_tpr_means, label="GMM")
+plot(fprs, [x[2]-x[1] for x in gmm_tpr_cis_1k]./gmm_tpr_means_1k, label="GMM-1k")
+plot(fprs, [x[2]-x[1] for x in analytical_tpr_cis]./bs_tpr_means, label="Kerekes")
+xlabel("FPR")
+ylabel("relative CI width")
+legend()
+
+# also add analytical cis for pauc
+Np = sum(y_tst)
+Nn = length(y_tst) - Np
+α = 0.05
+analytical_pauc_cis = map(x->ma_ci(x[1], x[2], a, b, Nn, Np, α), zip(bs_pauc_means, fprs))
+
+subplot(222)
+title("AUC@FPR, Np=$Np, Nn=$Nn")
+fill_between(fprs, [x[1] for x in bs_pauc_cis], [x[2] for x in bs_pauc_cis], alpha=0.3, label="BS")
+fill_between(fprs, [x[1] for x in gmm_pauc_cis], [x[2] for x in gmm_pauc_cis], alpha=0.3, label="GMM")
+fill_between(fprs, [x[1] for x in gmm_pauc_cis_1k], [x[2] for x in gmm_pauc_cis_1k], alpha=0.3, label="GMM-1k")
+fill_between(fprs, [x[1] for x in analytical_pauc_cis], [x[2] for x in analytical_pauc_cis], alpha=0.3, label="Ma")
+ylabel("AUC@FPR")
+legend(loc="lower right")
+
+subplot(224)
+plot(fprs, [x[2]-x[1] for x in bs_pauc_cis]./bs_pauc_means, label="BS")
+plot(fprs, [x[2]-x[1] for x in gmm_pauc_cis]./gmm_pauc_means, label="GMM")
+plot(fprs, [x[2]-x[1] for x in gmm_pauc_cis_1k]./gmm_pauc_means_1k, label="GMM-1k")
+plot(fprs, [x[2]-x[1] for x in analytical_pauc_cis]./bs_pauc_means, label="Ma")
+xlabel("FPR")
+ylabel("relative CI width")
+legend()
+tight_layout()
+ff = joinpath(savepath, dataset*"_analytical_vs_empirical.png")
+savefig(ff)
+
+# ok so this is a bit weird since there is quite a discontinuity at fpr=0.1 
+# since the poisson and gauss cis are quite different
+if false
+	Np = 200
+	ttpr = collect(0:0.01:1.0)
+	tcintervals = map(x->bin_ci(Np,x,α),ttpr)
+	plot(ttpr, [x[2] for x in tcintervals]-ttpr, label="bin")
+
+	tncintervals = map(x->kerekes_ci(Np,x,α),ttpr)
+	plot(ttpr, [x[2] for x in tncintervals]-ttpr, label="combined")
+	legend()
+end

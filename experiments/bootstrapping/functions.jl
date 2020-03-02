@@ -8,6 +8,7 @@ using Distributions
 using StatsBase
 import StatsBase.sample
 
+# these confidence intervals are base on Kerekes - Receiver Operating Characteristic Curve Confidence Intervals and Regions
 critval(α, dist) = invlogccdf(dist, log(α))
 critf(α, df1, df2) = quantile(FDist(df1, df2), 1-α)
 critchi2(α, df) = quantile(Chisq(df), 1-α)
@@ -20,6 +21,16 @@ function bin(N, θ, α)
 	return θL, θU
 end
 
+function bin_ci(N, θ, α)
+	if θ == 0
+		return (0.0, 0.0)
+	elseif θ == 1
+		return (1.0, 1.0)
+	else
+		return bin(N, θ, α) 
+	end
+end
+
 function poisson(N, θ, α) 
 	if θ > 0
 		return critchi2(1-α/2, 2*N*θ)/(2*N), critchi2(α/2, 2*(N*θ+1))/(2*N)
@@ -27,10 +38,39 @@ function poisson(N, θ, α)
 		return 0.0, critchi2(α, 2*(N*θ+1))/(2*N)
 	end
 end
+function poisson_ci(N, θ, α)
+	if θ == 0
+		return (0.0, 0.0)
+	elseif θ == 1
+		return (1.0, 1.0)
+	else
+		return poisson(N, θ, α) 
+	end
+end
 
 function gauss(N, θ, α)
 	s = sqrt(θ*(1-θ))*critt(α/2, N-1)/sqrt(N)
 	θ-s, θ+s
+end
+
+function gauss_ci(N, θ, α)
+	if θ == 0
+		return (0.0, 0.0)
+	elseif θ == 1
+		return (1.0, 1.0)
+	else
+		return gauss(N, θ, α) 
+	end
+end
+
+function kerekes_ci(N, θ, α)
+	if N <= 100
+		return bin_ci(N, θ, α)
+	elseif θ < 0.1
+		return poisson_ci(N, θ, α)
+	else
+		return gauss_ci(N, θ, α)
+	end
 end
 
 # this should work for exponential distributions
@@ -112,6 +152,7 @@ dAdb(a::Real, b::Real, h::Real) =
 	-exp(-a^2/(2*(1+b^2)))*(exp(-h^2/2)/(2*pi*(1+b^2)) + a*b*cdf(Normal(), h)/sqrt(2*pi*(1+b^2)^3))
 hf(e::Real, a::Real, b::Real) = sqrt(1+b^2)*(quantile(Normal(), e) + a*b/(1+b^2))
 var_auc(va::Real, vb::Real, da::Real, db::Real, cab::Real) = da^2*va + db^2*vb + 2*da*db*cab
+# n = no negatives, m = no positives
 function var_pauc(e::Real, a::Real, b::Real, n::Int, m::Int)
 	va = var_a(a, b, n, m)
 	vb = var_b(b, n, m)
@@ -122,6 +163,11 @@ function var_pauc(e::Real, a::Real, b::Real, n::Int, m::Int)
 	var_auc(va, vb, da, db, cab)
 end
 roc_parameters(m0::Real, std0::Real, m1::Real, std1::Real) = abs(m1-m0)/std1, std0/std1
+function ma_ci(pauc::Real, e::Real, a::Real, b::Real, n::Int, m::Int, α::Real)
+	std = sqrt(var_pauc(e::Real, a::Real, b::Real, n::Int, m::Int))
+	q = quantile(Normal(), 1-α/2)
+	ul, up = max(0.0, pauc-q*std), min(1.0, pauc+q*std)
+end
 
 # define a knn fit
 function knn_score(X_tr::Matrix, x::Vector, k::Int)  

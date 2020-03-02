@@ -160,9 +160,9 @@ if !bootstrapping
 else
 	savepath = "/home/vit/vyzkum/measure_evaluation/bootstrapping"
 	path_umap = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_bootstrapping_contaminated-0.00"
-	path5 =  ""#"/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_f1_contaminated-0.05"
-	path0 =  "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_bootstrapping_contaminated-0.00"
-	path1 =  ""#"/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_f1_contaminated-0.01"
+	path5 = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_bootstrapping_contaminated-0.05"
+	path0 = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_bootstrapping_contaminated-0.00"
+	path1 = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_bootstrapping_contaminated-0.01"
 
 measures = 	[:auc, :auc_bs, :auc_gmm, :auc_gmm_5000, :auc_weighted, 
 		 :auc_at_5, :auc_at_5_bs, :auc_at_5_gmm, :auc_at_5_gmm_5000,
@@ -314,7 +314,7 @@ measures = 	[:auc, :auc_bs, :auc_gmm, :auc_gmm_5000, :auc_weighted,
 
 	abs_df_umap_0_bs, rel_df_umap_0_bs, rel_s_umap_0_bs = construct_tex_tables(
 			path_umap,
-			[:auc_bs, :auc_weighted, 
+			[:auc_bs, :auc_weighted,
 			 :auc_at_5_bs,
 			 :prec_at_5, 
 			 :tpr_at_5_bs,
@@ -340,4 +340,34 @@ measures = 	[:auc, :auc_bs, :auc_gmm, :auc_gmm_5000, :auc_weighted,
 			colmeans=true, sep_last=true,
 			asterisk = true, fittext=true, vertcolnames=true)
 
+measures = 	[:auc, :auc_bs, :auc_gmm, :auc_weighted, 
+		 :auc_at_5, :auc_at_5_bs, :auc_at_5_gmm, 
+		 :prec_at_5, 
+		 :tpr_at_5, :tpr_at_5_bs, :tpr_at_5_gmm, 
+		 :f1_at_5, :vol_at_5,
+	 	 :auc_at_1, :auc_at_1_bs, :auc_at_1_gmm, 
+	 	 :prec_at_1, 
+	 	 :tpr_at_1, :tpr_at_1_bs, :tpr_at_1_gmm, 
+	 	 :f1_at_1, :vol_at_1
+	 	 ]
+	measure_names = ["AUC", "AUC-BS", "AUC-GMM", "AUC\$_w\$", 
+		"AUC@0.05", "AUC@0.05-BS", "AUC@0.05-GMM", 
+		"precision@0.05", 
+		"TPR@0.05", "TPR@0.05-BS", "TPR@0.05-GMM", 
+		"F1@0.05", "CVOL@0.05",
+		"AUC@0.01", "AUC@0.01-BS", "AUC@0.01-GMM", 
+		"precision@0.01", 
+		"TPR@0.01", "TPR@0.01-BS", "TPR@0.01-GMM", 
+		"F1@0.01", "CVOL@0.01"]
+
+	abs_df_umap_0, rel_df_umap_0, rel_s_umap_0 = construct_tex_tables(
+			path_umap,
+			measures,
+			measure_names,
+			"table_measure_comparison_umap_0_by_models_bs_vs_gmm.tex", 
+			"Means of relative performance loss in a column measure when optimal model and hyperparameters are selected using the row measure. UMAP dataset, 0\\% training contamination.",
+			"tab:measure_comparison_umap_0_by_models_bs_vs_gmm"; 
+	#		models = ["kNN", "IF", "LOF"],
+			colmeans=true, sep_last=true,
+			asterisk = true, fittext=true, vertcolnames=true)
 end

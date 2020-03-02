@@ -1,0 +1,4 @@
+1) use tukey test for selecting best measure and fpr
+2) only compute it up to a level of interest
+3) compare it to AUC@5
+4) 
