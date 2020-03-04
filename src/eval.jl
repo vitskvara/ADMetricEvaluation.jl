@@ -875,3 +875,5 @@ collect_all_datasets_data(data_path, datasets, measures;
 	no_diff=true, average_subproblems=false) = 
 		vcat(map(x->collect_one_dataset_data(data_path, x, measures; 
 		no_diff=no_diff, average_subproblems=average_subproblems), datasets)...)
+
+# functions for the discriminability stuff

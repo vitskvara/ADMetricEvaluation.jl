@@ -38,6 +38,9 @@ s = ArgParseSettings()
     "--robust-measures"
         action = :store_true
         help = "compute robust measures"
+    "--discriminability"
+        action = :store_true
+        help = "run the discriminability experiment"
 end
 parsed_args = parse_args(ARGS, s)
 dataset = parsed_args["dataset"]
@@ -46,6 +49,7 @@ tr_contamination = parsed_args["train-contamination"]
 model_names = parsed_args["models"]
 tst_contamination = (parsed_args["test-contamination"] == -1) ? nothing : parsed_args["test-contamination"]
 robust_measures = parsed_args["robust-measures"]
+discriminability = parsed_args["discriminability"]
 
 include("models.jl")
 
@@ -99,5 +103,6 @@ end
 	mc_volume_repeats = mc_volume_repeats, 
 	standardize=true,
 	test_contamination = tst_contamination,
-    robust_measures = robust_measures
+    robust_measures = robust_measures,
+    discriminability_exp = discriminability
 	)

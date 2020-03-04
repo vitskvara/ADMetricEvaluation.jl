@@ -29,7 +29,7 @@ function get_scores(roc, fprs, measure)
 	map(fpr -> measure(roc...,fpr), fprs)
 end
 
-function compute_measures(fprs, ks, fname, contamination)
+function compute_measures(models, model_names_diff, fprs, ks, fname, contamination)
 	if isfile(fname)
 		measure_vals = load(fname)["measure_vals"]
 	else
@@ -67,7 +67,7 @@ function interpolate_roc(roc, fpr_knots)
 	tpr_interpolated
 end
 
-function get_statistics(measure_name,n,α)
+function get_statistics(measure_vals, measure_name,n,α,model_names_diff)
 	means = map(m->mean(measure_vals[m][measure_name],dims=2),model_names_diff)
 	stds = map(m->std(measure_vals[m][measure_name],dims=2),model_names_diff)
 	welch = map(x->welch_test_statistic.(x[1], x[2], x[3], x[4], n, n), 
@@ -110,7 +110,8 @@ function make_plot_save_data(contamination, outpath, base_dataset, sub, model_na
 	fprs = collect(0.005:0.005:0.3);
 	ks = collect(1:50);
 	fname = joinpath(outpath, dataset_fname*"_"*model_fname*".jld2")
-	measure_vals = compute_measures(fprs, ks, fname, contamination)
+	measure_vals = compute_measures(models, model_names_diff, fprs, 
+		ks, fname, contamination)
 	measure_names = [:auc_at_p, :tpr_at_p]
 	measure_titles = ["AUC@FPR", "TPR@FPR"]
 
@@ -126,9 +127,9 @@ function make_plot_save_data(contamination, outpath, base_dataset, sub, model_na
 	n = ks[end]
 	α = 0.05
 	pauc_means, pauc_stds, pauc_welch, pauc_dfs, pauc_critvals, pauc_pvals = 
-		get_statistics(:auc_at_p,n,α)
+		get_statistics(measure_vals, :auc_at_p,n,α,model_names_diff)
 	tpr_means, tpr_stds, tpr_welch, tpr_dfs, tpr_critvals, tpr_pvals = 
-		get_statistics(:tpr_at_p,n,α)
+		get_statistics(measure_vals, :tpr_at_p,n,α,model_names_diff)
 	save(fname, "measure_vals", measure_vals, 
 		"tpr_stats", Dict(
 			:means => tpr_means, 

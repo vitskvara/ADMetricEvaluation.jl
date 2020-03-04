@@ -236,6 +236,74 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 end
 
 """
+	discriminability_experiment(model, parameters, X_train, y_train, X_test, y_test,
+	fprs)
+
+Basic discriminability experiment function.
+"""
+function discriminability_experiment(model, parameters, X_train, y_train, X_test, y_test,
+	fprs)
+	# create and fit the model and produce anomaly scores
+	m = model(parameters...)
+	resvec = Array{Any,1}()
+	metric_vals = DataFrame(
+					:auc=>Float64[],
+					:auc_weighted=>Float64[],
+					:prec_at_1=>Float64[],
+					:prec_at_5=>Float64[],
+					:f1_at_1=>Float64[],
+					:f1_at_5=>Float64[]
+					)
+	map(fpr->metric_vals[!,Symbol("auc_at_$(round(Int,100*fpr))")]=[],fprs)
+	map(fpr->metric_vals[!,Symbol("tpr_at_$(round(Int,100*fpr))")]=[],fprs)
+
+	try
+		ScikitLearn.fit!(m, Array(transpose(X_train)))
+		score_fun(X) = -ScikitLearn.decision_function(m, Array(transpose(X))) 
+		scores = score_fun(X_test)
+
+		# now compute the needed metrics
+		# construct the output df
+		
+		# get the roc and the score
+		fprvec, tprvec = EvalCurves.roccurve(scores, y_test)
+		push!(resvec, EvalCurves.auc(fprvec, tprvec))
+		push!(resvec, EvalCurves.auc(fprvec, tprvec, "1/x"))
+		
+		# instead of precision@k we will compute precision@p
+		push!(resvec, mean_precision_at_p(score_fun, X_test, y_test, 0.01))
+		push!(resvec, mean_precision_at_p(score_fun, X_test, y_test, 0.05))
+
+		# f1@alpha
+		push!(resvec, EvalCurves.f1_at_fpr(scores, y_test, 0.01; warns=false))
+		push!(resvec, EvalCurves.f1_at_fpr(scores, y_test, 0.05; warns=false))	
+
+		# tpr@fpr
+		for fpr in fprs
+			push!(resvec, EvalCurves.auc_at_p(fprvec,tprvec,fpr; normalize = true))
+		end
+		for fpr in fprs
+			push!(resvec, EvalCurves.tpr_at_fpr(fprvec, tprvec, fpr))
+		end	
+		
+	catch e
+		if isa(e, ArgumentError)
+			println("Error in fit or predict:")
+			println(e)
+			println("")
+		else
+			rethrow(e)
+		end
+		resvec = repeat([NaN], 6+2*length(fprs))
+	end
+	
+	push!(metric_vals, resvec)
+		
+	return metric_vals
+
+end
+
+"""
 	experiment_nfold(model, parameters, param_names, data::ADDataset; 
 	n_experiments::Int = 10, p::Real = 0.8, exp_kwargs...)
 
@@ -243,14 +311,22 @@ Run the experiment n times with different resamplings of data.
 """
 function experiment_nfold(model, parameters, param_names, data::UCI.ADDataset; 
 	n_experiments::Int = 10, p::Real = 0.8, contamination::Real=0.05, 
-	test_contamination = nothing, standardize=false, exp_kwargs...)
+	test_contamination = nothing, standardize=false, 
+	discriminability_exp =false, fprs = collect(range(0.01,0.99,length=99)),
+	exp_kwargs...)
 	results = []
 	for iexp in 1:n_experiments
 		X_tr, y_tr, X_tst, y_tst = UCI.split_data(data, p, contamination;
 			test_contamination = test_contamination, seed = iexp, standardize=standardize)
-		res = experiment(model, parameters, X_tr, y_tr, X_tst, y_tst; exp_kwargs...)
+		if discriminability_exp
+			res = discriminability_experiment(model, parameters, X_tr, y_tr, X_tst, y_tst, 
+				fprs)
+		else
+			res = experiment(model, parameters, X_tr, y_tr, X_tst, y_tst; exp_kwargs...)
+		end	
 		for (par_name, par_val) in zip(param_names, parameters)
-			insertcols!(res, 1, par_name=>par_val) # append the column to the beginning of the df
+			insertcols!(res, 1, par_name=>par_val) 
+			# append the column to the beginning of the df
 		end
 		insertcols!(res, 1, :iteration=>iexp)
 		# also, compute clusterdness
@@ -259,6 +335,7 @@ function experiment_nfold(model, parameters, param_names, data::UCI.ADDataset;
 	end
 	return vcat(results...)
 end
+
 
 gridsearch(f, parameters...) = vcat(map(f, Base.product(parameters...))...)
 
@@ -311,8 +388,8 @@ function run_experiment(dataset_name, model_list, model_names, param_struct, mas
 end
 
 """
-	function run_umap_experiment(dataset_name, model_list, model_names, param_struct, 
-	master_save_path;e xp_kwargs...)
+	run_umap_experiment(dataset_name, model_list, model_names, param_struct, 
+	master_save_path; exp_kwargs...)
 
 Runs the experiment for UMAP data given a dataset name.
 """
@@ -345,6 +422,17 @@ function run_synthetic_experiment(dataset_name, model_list, model_names, param_s
 	end
 	return results
 end
+
+"""
+	run_discriminability_experiment(dataset_name, model_list, model_names, param_struct, 
+	master_save_path; exp_kwargs...)
+
+Runs the experiment for UMAP data given a dataset name.
+"""
+run_discriminability_experiment(dataset_name, model_list, model_names, param_struct, 
+	master_save_path;
+	exp_kwargs...) = run_experiment(dataset_name, model_list, model_names, param_struct, 
+	master_save_path; discriminability_exp=true, exp_kwargs...)
 
 """
 	volume(bounds)
