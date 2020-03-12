@@ -19,6 +19,7 @@ using NearestNeighbors
 using LinearAlgebra
 using GaussianMixtures
 using Suppressor
+using Distributions
 
 const Float = Float32
 
@@ -27,5 +28,6 @@ include("kNN.jl")
 include("eval.jl")
 include("plots.jl")
 include("robust_measures.jl")
+include("discriminability.jl")
 
 end # module

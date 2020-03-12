@@ -8,9 +8,13 @@ s = ArgParseSettings()
     "--bootstrapping"
 		action = :store_true
         help = "compute only the bootstrapping tables"
+    "--discriminability"
+		action = :store_true
+        help = "compute only the discriminability tables"
 end
 parsed_args = parse_args(ARGS, s)
 bootstrapping = parsed_args["bootstrapping"]
+discriminability = parsed_args["discriminability"]
 
 function construct_tex_table(data_path, texfile, metrics, metric_labels, texlabel, texcaption)
 	if data_path == ""
@@ -38,7 +42,7 @@ function construct_tex_table(data_path, texfile, metrics, metric_labels, texlabe
 	return ranks_df, ranks_s
 end
 
-if !bootstrapping
+if !bootstrapping && !discriminability
 	savepath = "."
 	#savepath = "/home/vit/Dropbox/Cisco/metric_evaluation_paper/dmkd_journal"
 	umap_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_f1_contaminated-0.00"
@@ -67,7 +71,43 @@ if !bootstrapping
 			"table_model_ranks_0.tex", metrics, metric_labels, "tab:model_ranks_0", 
 			"Means and standard deviations of algorithm ranks using different measures, 0\\% training contamination.")
 	println("succesfuly exported the full model ranks table")
+elseif discriminability
+	savepath = "/home/vit/vyzkum/measure_evaluation/discriminability"
+	umap_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_discriminability_contaminated-0.00_joined"
+	full_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_discriminability_contaminated-0.00_joined"
 
+	base_metrics = [:auc, :auc_weighted, :auc_at_1, :auc_at_5,
+		 :tpr_at_1, :tpr_at_5, :prec_at_1, :prec_at_5,
+		 :f1_at_1, :f1_at_5, :vol_at_1, :vol_at_5
+	 	 ]
+	base_metric_labels = ["AUC", "AUC\$_w\$", "AUC@0.01", "AUC@0.05",
+		"TPR@0.01", "TPR@0.05", "precision@0.01", "precision@0.05",
+		"F1@0.01", "F1@0.05", "CVOL@0.01", "CVOL@0.05"
+		]
+
+	edit_crit(x) = replace(x, "_"=>"-")
+	metrics = vcat(base_metrics, vcat(map(x->Symbol.([x*"_auc_at", x*"_tpr_at"]),
+		["tukey_q", "tukey_mean", "tukey_median", "welch_mean", "welch_median"])...))
+	metric_labels = vcat(base_metric_labels, 
+		vcat(map(x->["AUC@$(edit_crit(x))", "TPR@$(edit_crit(x))"],
+		["tukey_q", "tukey_mean", "tukey_median", "welch_mean", "welch_median"])...))
+
+	# now do this for the individual criterions
+	ranks_umap_df, ranks_umap_s = 
+		construct_tex_table(
+			umap_path, 
+			"table_model_ranks_umap_0.tex", metrics, metric_labels, 
+			"tab:model_ranks_umap_0", 
+			"Means and standard deviations of algorithm ranks using different measures, UMAP datasets, 0\\% training contamination.")
+	println("succesfuly exported the UMAP model ranks table")
+
+	ranks_df, ranks_s = 
+		construct_tex_table(
+			full_path, 
+			"table_model_ranks_0.tex", metrics, metric_labels, 
+			"tab:model_ranks_0", 
+			"Means and standard deviations of algorithm ranks using different measures, 0\\% training contamination.")
+	println("succesfuly exported the full model ranks table")
 else
 	savepath = "/home/vit/vyzkum/measure_evaluation/bootstrapping"
 	umap_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_bootstrapping_contaminated-0.00"

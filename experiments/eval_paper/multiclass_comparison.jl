@@ -12,9 +12,13 @@ s = ArgParseSettings()
     "--bootstrapping"
 		action = :store_true
         help = "compute only the bootstrapping tables"
+    "--discriminability"
+		action = :store_true
+        help = "compute only the discriminability tables"
 end
 parsed_args = parse_args(ARGS, s)
 bootstrapping = parsed_args["bootstrapping"]
+discriminability = parsed_args["discriminability"]
 
 basepath = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation"
 datasets = readdir(joinpath(basepath, "umap_f1_contaminated-0.00"))
@@ -265,7 +269,7 @@ function create_tex_table(mean_df, outfile, measure_names, label, caption; shade
 end
 
 
-if !bootstrapping
+if !bootstrapping && !discriminability
 	savepath = "."
 	#savepath = "/home/vit/Dropbox/Cisco/metric_evaluation_paper/dmkd_journal"
 	datasets = readdir(joinpath(basepath, "umap_f1_contaminated-0.00"))
@@ -279,6 +283,50 @@ if !bootstrapping
 	#### all datasets umap and full ####### 
 	alldf0 = prepare_all_df(joinpath(basepath, "full_f1_contaminated-0.00"), measures, datasets)
 	alldf_umap0 = prepare_all_df(joinpath(basepath, "umap_f1_contaminated-0.00"), measures, datasets)
+	max_dfs_full0 = collect_max_dfs_dict(alldf0, measures)
+	max_dfs_umap0 = collect_max_dfs_dict(alldf_umap0, measures)
+
+	all_means_df_umap = compute_means_across_datasets(max_dfs_umap0, fig_meas)
+	all_str_df_umap, all_tex_str_umap = create_tex_table(
+		all_means_df_umap, 
+		joinpath(savepath, "table_multiclass_all_means_umap_0.tex"), 
+		meas_names,
+		"tab:multiclass_all_means_umap_0", 
+		"All UMAP datasets, mean of multiclass sensitivities, 0\\% training contamination."; shade = true, 
+		vertcolnames=true)
+
+	all_means_df_full = compute_means_across_datasets(max_dfs_full0, fig_meas)
+	all_str_df_full, all_tex_str_full = create_tex_table(
+		all_means_df_full, 
+		joinpath(savepath, "table_multiclass_all_means_full_0.tex"), 
+		meas_names,
+		"tab:multiclass_all_means_full_0", 
+		"All full datasets, mean of multiclass sensitivities, 0\\% training contamination."; shade = true, 
+		vertcolnames=true)
+elseif discriminability
+	savepath = "/home/vit/vyzkum/measure_evaluation/discriminability"
+	base_measures = [:auc, :auc_weighted, :auc_at_1, :auc_at_5,
+		 :tpr_at_1, :tpr_at_5, :prec_at_1, :prec_at_5,
+		 :f1_at_1, :f1_at_5, :vol_at_1, :vol_at_5
+	 	 ]
+	base_measure_labels = ["AUC", "AUC\$_w\$", "AUC@0.01", "AUC@0.05",
+		"TPR@0.01", "TPR@0.05", "precision@0.01", "precision@0.05",
+		"F1@0.01", "F1@0.05", "CVOL@0.01", "CVOL@0.05"
+		]
+
+	edit_crit(x) = replace(x, "_"=>"-")
+	measures = vcat(base_measures, vcat(map(x->Symbol.([x*"_auc_at", x*"_tpr_at"]),
+		["tukey_q", "tukey_mean", "tukey_median", "welch_mean", "welch_median"])...))
+	measure_labels = vcat(base_measure_labels, 
+		vcat(map(x->["AUC@$(edit_crit(x))", "TPR@$(edit_crit(x))"],
+		["tukey_q", "tukey_mean", "tukey_median", "welch_mean", "welch_median"])...))
+
+	fig_meas = measures
+	meas_names = measure_labels
+	
+	#### all datasets umap and full ####### 
+	alldf0 = prepare_all_df(joinpath(basepath, "full_discriminability_contaminated-0.00_joined"), measures, datasets)
+	alldf_umap0 = prepare_all_df(joinpath(basepath, "umap_discriminability_contaminated-0.00_joined"), measures, datasets)
 	max_dfs_full0 = collect_max_dfs_dict(alldf0, measures)
 	max_dfs_umap0 = collect_max_dfs_dict(alldf_umap0, measures)
 

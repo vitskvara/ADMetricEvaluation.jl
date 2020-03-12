@@ -275,9 +275,11 @@ function collect_fold_averages(data_path, metrics = [:auc, :auc_weighted, :auc_a
 	alldf = vcat(res...)
 	# filter out some models
 	filter!(x->x[:model] in models, alldf)
+	join_und(x,y) = x*"_"*y
 	# remove the _mean suffix from the dataset
 	for name in names(alldf)
-		new_name = Symbol(split(string(name), "_mean")[1])
+		ss = split(string(name), "_")
+		new_name = (length(ss)==1) ? Symbol(ss[1]) : Symbol(reduce(join_und,ss[1:end-1]))
 		rename!(alldf, name => new_name	)
 	end
 	return alldf

@@ -10,9 +10,13 @@ s = ArgParseSettings()
     "--bootstrapping"
 		action = :store_true
         help = "compute only the bootstrapping tables"
+    "--discriminability"
+		action = :store_true
+        help = "compute only the discriminability tables"
 end
 parsed_args = parse_args(ARGS, s)
 bootstrapping = parsed_args["bootstrapping"]
+discriminability = parsed_args["discriminability"]
 
 function create_tex_table(data_path, measures, measure_dict, filename, label, caption; 
 	shading=false, column_mean = false, sep_last=false, df2texkwargs...)
@@ -75,7 +79,7 @@ function create_tex_table(data_path, measures, measure_dict, filename, label, ca
 	return df, df_str, table_str
 end
 
-if !bootstrapping
+if !bootstrapping && !discriminability
 	savepath = "."
 	datapath = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_f1_contaminated-0.00"
 
@@ -107,6 +111,48 @@ if !bootstrapping
 	)
 
 	println("measure correlations for FULL data exported to TEX.")
+elseif discriminability
+	savepath = "/home/vit/vyzkum/measure_evaluation/discriminability"
+	datapath_umap = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_discriminability_contaminated-0.00_joined"
+	datapath_full = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_discriminability_contaminated-0.00_joined"
+
+	base_measures = [:auc, :auc_weighted, :auc_at_1, :auc_at_5,
+		 :tpr_at_1, :tpr_at_5, :prec_at_1, :prec_at_5,
+		 :f1_at_1, :f1_at_5, :vol_at_1, :vol_at_5
+	 	 ]
+	base_measure_labels = ["AUC", "AUC\$_w\$", "AUC@0.01", "AUC@0.05",
+		"TPR@0.01", "TPR@0.05", "precision@0.01", "precision@0.05",
+		"F1@0.01", "F1@0.05", "CVOL@0.01", "CVOL@0.05"
+		]
+
+	edit_crit(x) = replace(x, "_"=>"-")
+	measures = vcat(base_measures, vcat(map(x->Symbol.([x*"_auc_at", x*"_tpr_at"]),
+		["tukey_q", "tukey_mean", "tukey_median", "welch_mean", "welch_median"])...))
+	measure_labels = vcat(base_measure_labels, 
+		vcat(map(x->["AUC@$(edit_crit(x))", "TPR@$(edit_crit(x))"],
+		["tukey_q", "tukey_mean", "tukey_median", "welch_mean", "welch_median"])...))
+
+	measure_dict = Dict(zip(measures, measure_labels))
+
+	cordf_umap, cordf_str_umap_0, cordf_tex_str_umap_0 = create_tex_table(
+		datapath_umap,
+		measures, measure_dict,
+		"table_measure_correlation_umap_0.tex",
+		"tab:measure_correlation_umap_0",
+		"Average of Kendall correlation between measures over UMAP datasets, 0\\% contamination. Level of shading highlights three highest correlations in a column.";
+		column_mean = true, shading = true, sep_last=true, fittext = true
+	)
+	println("measure correlations for UMAP data exported to TEX.")
+	
+	cordf_full, cordf_str_full_0, cordf_tex_str_full_0 = create_tex_table(
+		datapath_full,
+		measures, measure_dict,
+		"table_measure_correlation_full_0.tex",
+		"tab:measure_correlation_full_0",
+		"Average of Kendall correlation between measures over datasets, 0\\% contamination. Level of shading highlights three highest correlations in a column.";
+		column_mean = true, shading = true, sep_last=true, fittext = true
+	)
+	println("measure correlations for FULL data exported to TEX.")
 else
 	savepath = "/home/vit/vyzkum/measure_evaluation/bootstrapping"
 	datapath_umap = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_bootstrapping_contaminated-0.00"
@@ -137,7 +183,7 @@ else
 	#data_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_data_contaminated"
 	#cordf = ADMetricEvaluation.global_measure_correlation(data_path)
 
-ordf_umap, cordf_str_umap_0, cordf_tex_str_umap_0 = create_tex_table(
+	cordf_umap, cordf_str_umap_0, cordf_tex_str_umap_0 = create_tex_table(
 		datapath_umap,
 		measures, measure_dict,
 		"table_measure_correlation_umap_0.tex",

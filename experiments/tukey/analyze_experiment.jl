@@ -4,71 +4,59 @@ include("functions.jl")
 using DataFrames, CSV, ADMetricEvaluation
 ADME = ADMetricEvaluation
 
-inpath = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_discriminability_contaminated-0.00_pre"
+master_inpath = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_discriminability_contaminated-0.00_pre"
 dataset = "wine"
 dataset = "statlog-satimage"
-dfs = ADME.loaddata(dataset, inpath)
-alldf = vcat(map(df->ADME.drop_cols!(ADME.merge_param_cols!(df)), dfs)...);
-
-# do it for only one subdataset first
 subset = "2-1"
 subset = "1-3"
-subdf = filter(r->occursin(subset,r[:dataset]),alldf)
-colnames = names(subdf)
+dataset = "ecoli"
+subset = "cp-imL"
+
+outpath = create_outpath(master_inpath, dataset)
+inpath = joinpath(master_inpath, dataset)
+# get individual datasets
+dfs = map(x->CSV.read(joinpath(inpath, x)), readdir(inpath))
+alldf = vcat(map(df->ADME.drop_cols!(ADME.merge_param_cols!(df)), dfs)...);
+subsetdf = filter(r->r[:dataset]=="$(dataset)-$(subset)", alldf)
+
+#
+df = copy(subsetdf)
 measure = "auc_at"
-meas_cols = filter(x->occursin(measure, string(x)), colnames)
-subcols = vcat([:model, :params, :iteration], meas_cols)
-subdf = subdf[!,subcols]
+max_fpr = 1.0
+
+# determine some constants
+fprs = fpr_levels(df, measure)
+fprs = fprs[fprs.<=max_fpr]
+nfprs = length(fprs) # number of fpr levels of interes
+nexp = maximum(df[!,:iteration]) # number of experiments
+
+# get the dfs with means and variances
+colnames = names(df)
+meas_cols = filter(x->occursin(measure, string(x)), colnames)[1:nfprs]
+subdf = df[!,vcat([:model, :params, :iteration], meas_cols)]
+
+# now get the actual values
 mean_df = aggregate(subdf, [:model, :params], nanmean);
 remove_appendix!(mean_df, meas_cols, "nanmean");
 var_df = aggregate(subdf, [:model, :params], nanvar);
 remove_appendix!(var_df, meas_cols, "nanvar");
+mean_vals_df = mean_df[!,meas_cols] # these two only contain the value columns
+var_vals_df = var_df[!,meas_cols]
 
-mean_df=mean_df[setdiff(1:end, 4),:]
-var_df=var_df[setdiff(1:end, 4),:]
-# now we need to compute pairwise welch, pairwise tukey and tukey q
+# get the lines
+tq, wt_mean, wt_med, tt_mean, tt_med = 
+	stat_lines(mean_vals_df, var_vals_df, meas_cols, nexp)
 
-fprs = fpr_levels(alldf, "auc_at")
-
-figure()
-for row in eachrow(mean_df)
-	plot(fprs, Array(row[4:end]))
-end
-
-n = 50
-tq = map(c->tukey_q(mean_df[c], var_df[c], repeat([n], length(mean_df[c]))), meas_cols)
-
-# the pairwise stuff is tricky
-nr = size(mean_df,1)
-nc = size(mean_df,2) - 3
-wtm = zeros(Float32, binomial(nr,2), nc)
-ttm = zeros(Float32, binomial(nr,2), nc)
-l = 0
-for i in 1:nr
-	for j in i+1:nr
-		global l += 1
-		for k in 1:nc
-			# welch statistic
-			wtm[l,k] = abs(welch_test_statistic(mean_df[i,k+3], mean_df[j,k+3], var_df[i,k+3], 
-				var_df[j,k+3], n, n))
-			# tukey statistic
-			msw = (n-1)*sum(var_df[:,k+3])
-			ttm[l,k] = tukey_stat(mean_df[i,k+3], mean_df[j,k+3], msw, n)
-		end
-	end
-end
-wt = vec(mean(wtm, dims=1))
-tt = vec(mean(ttm, dims=1))
-
+# plot it
 figure()
 subplot(311)
 plot(fprs, tq)
 subplot(312)
-plot(fprs,tt)
+plot(fprs,tt_mean)
 subplot(313)
-plot(fprs,wt)
+plot(fprs,wt_mean)
 
-figure()
-plot(fprs[1:30],wt[1:30])
-
+df =copy(dfs[1])
+opt_fpr = opt_fprs[1]
+measure = measures[1]
 

@@ -9,9 +9,13 @@ s = ArgParseSettings()
     "--bootstrapping"
 		action = :store_true
         help = "compute only the bootstrapping tables"
+    "--discriminability"
+		action = :store_true
+        help = "compute only the discriminability tables"
 end
 parsed_args = parse_args(ARGS, s)
 bootstrapping = parsed_args["bootstrapping"]
+discriminability = parsed_args["discriminability"]
 
 function create_df(mean_df, measures, measure_names, sd_df=nothing; colmeans=false,
 	percents=false, shadingdf=nothing, sep_last=false)
@@ -114,7 +118,7 @@ function construct_tex_tables(data_path, measures, measure_names, filename,
 	return abs_df, rel_df, rel_s
 end
 
-if !bootstrapping
+if !bootstrapping && !discriminability
 	savepath = "."
 	path5 = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_f1_contaminated-0.05"
 	path0 = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_f1_contaminated-0.00"
@@ -157,6 +161,68 @@ if !bootstrapping
 	#		models = ["kNN", "IF", "LOF"],
 			colmeans=true, sep_last=true,
 			asterisk = true, fittext=true, vertcolnames=true)
+elseif discriminability
+	savepath = "/home/vit/vyzkum/measure_evaluation/discriminability"
+	path_umap = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_discriminability_contaminated-0.00_joined"
+	path5 = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_discriminability_contaminated-0.05_joined"
+	path0 = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_discriminability_contaminated-0.00_joined"
+	path1 = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_discriminability_contaminated-0.01_joined"
+	
+	base_measures = [:auc, :auc_weighted, :auc_at_1, :auc_at_5,
+		 :tpr_at_1, :tpr_at_5, :prec_at_1, :prec_at_5, 
+		 :f1_at_1, :f1_at_5#, :vol_at_1, :vol_at_5
+	 	 ]
+	base_measure_names = ["AUC", "AUC\$_w\$", "AUC@0.01", "AUC@0.05",
+		"TPR@0.01", "TPR@0.05", "precision@0.01", "precision@0.05",
+		"F1@0.01", "F1@0.05"#, "CVOL@0.01", "CVOL@0.05"		
+		]
+
+	edit_crit(x) = replace(x, "_"=>"-")
+	for crit in ["tukey_q", "tukey_mean", "tukey_median", "welch_mean", "welch_median"]
+		measures = vcat(base_measures, Symbol.([crit*"_auc_at", crit*"_tpr_at"]))
+		ecrit = edit_crit(crit)
+		measure_names = vcat(base_measure_names, ["AUC@$ecrit", "TPR@$ecrit"])
+
+		abs_df_umap_0, rel_df_umap_0, rel_s_umap_0 = construct_tex_tables(
+				path_umap,
+				measures,
+				measure_names,
+				"table_measure_comparison_umap_0_by_models_$(crit).tex", 
+				"Means of relative performance loss in a column measure when optimal model and hyperparameters are selected using the row measure. UMAP dataset, 0\\% training contamination.",
+				"tab:measure_comparison_umap_0_by_models_$(crit)"; 
+				colmeans=true, sep_last=true,
+				asterisk = true, fittext=true, vertcolnames=true)
+				
+		abs_df_full_5, rel_df_full_5, rel_s_full_5 = construct_tex_tables(
+				path5,
+				measures,
+				measure_names,
+				"table_measure_comparison_full_5_by_models_$(crit).tex", 
+				"Means of relative performance loss in a column measure when optimal model and hyperparameters are selected using the row measure. 5\\% training contamination.",
+				"tab:measure_comparison_full_5_by_models_$(crit)"; 
+				colmeans=true, sep_last=true,
+				asterisk = true, fittext=true, vertcolnames=true)
+
+		abs_df_full_0, rel_df_full_0, rel_s_full_0 = construct_tex_tables(
+				path0,
+				measures,
+				measure_names,
+				"table_measure_comparison_full_0_by_models_$(crit).tex", 
+				"Means of relative loss in a column measure when optimal model and hyperparameters are selected using the row measure. 0\\%  training contamination. Level of shading highlights three best results in a column.",
+				"tab:measure_comparison_full_0_by_models_$(crit)"; 
+				colmeans=true, sep_last=true,
+				asterisk = true, fittext=true, vertcolnames=true)
+
+		abs_df_full_1, rel_df_full_1, rel_s_full_1 = construct_tex_tables(
+				path1,
+				measures,
+				measure_names,
+				"table_measure_comparison_full_1_by_models_$(crit).tex", 
+				"Means of relative loss in a column measure when optimal model and hyperparameters are selected using the row measure. 1\\% contamination.",
+				"tab:measure_comparison_full_1_by_models_$(crit)"; 
+				colmeans=true, sep_last=true,
+				asterisk = true, fittext=true, vertcolnames=true)
+	end
 else
 	savepath = "/home/vit/vyzkum/measure_evaluation/bootstrapping"
 	path_umap = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_bootstrapping_contaminated-0.00"
