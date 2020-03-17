@@ -16,13 +16,19 @@ function welch_df(σ1::Real, σ2::Real, n1::Int, n2::Int)
 	df = (σ1^2/n1 + σ2^2/n2)^2/(σ1^4/(n1^2*(n1-1)) + σ2^4/(n2^2*(n2-1)))
 	isnan(df) ? NaN : floor(Int, df)
 end
-critt(α::Real, df::Int) = quantile(TDist(df), 1-α)
-critt(α::Real, df::Real) = isnan(df) ? NaN : quantile(TDist(df), 1-α)
+crit_t(α::Real, df::Int) = quantile(TDist(df), 1-α)
+crit_t(α::Real, df::Real) = isnan(df) ? NaN : quantile(TDist(df), 1-α)
+welch_critval(α::Real, df::Real) = crit_t(α/2, df)
+welch_critval(α::Real, σ1::Real, σ2::Real, n1::Int, n2::Int) = 
+	welch_critval(α, welch_df(σ1, σ2, n1, n2))
 welch_pval(t::Real, df::Int) = 1-cdf(TDist(df), t) # onesided version
 welch_pval(t::Real, df::Real) = isnan(df) ? NaN : 1-cdf(TDist(df), t) # onesided version
 
 
-tukey_stat(m1, m2, msw, n) = (max(m1,m2)-min(m1,m2))/sqrt(msw/n)
+tukey_test_statistic(μ1::Real, μ2::Real, msw::Real, n::Int) = (max(μ1,μ2)-min(μ1,μ2))/sqrt(msw/n)
+# k = number of groups, df = (N - k) = (total samples - k)
+crit_srd(α::Real, k::Real, df::Real) = (isnan(k) | isnan(df)) ? NaN : quantile(StudentizedRange(df, k), 1-α)
+tukey_critval(α::Real, k::Real, df::Real) = crit_srd(α/2, k, df)
 
 function get_tukey_stats(measure)
 	tk_stats = Dict(zip(mpair_symbols, [Dict(:vals=>[], :fpr=>[]) for _ in mpairs]))
@@ -35,7 +41,7 @@ function get_tukey_stats(measure)
 		group_vars = map(var, pop_vals)
 		msw = (n-1)*sum(group_vars)
 		for (m, ms) in zip(mpairs, mpair_symbols)
-			tk_stat = tukey_stat(group_means[m[1]], group_means[m[2]], msw, n)
+			tk_stat = tukey_test_statistic(group_means[m[1]], group_means[m[2]], msw, n)
 			if !isnan(tk_stat)
 				push!(tk_stats[ms][:vals], tk_stat)
 				push!(tk_stats[ms][:fpr], fprs[ifpr])
@@ -45,15 +51,15 @@ function get_tukey_stats(measure)
 	return tk_stats
 end
 
-function tukey_q(means::Vector, vars::Vector, ns::Vector)
+function tukey_q_statistic(means::Vector, vars::Vector, ns::Vector)
 	imax, imin = argmax(means), argmin(means)
 	var = ((ns[imax]-1)*vars[imax] + (ns[imin]-1)*vars[imin])/(ns[imax]+ns[imin]-2)
-	(means[imax]-means[imin])/sqrt(2*var/(ns[imax]+ns[imin]))
+	(means[imax]-means[imin])/sqrt(var/(ns[imax]+ns[imin]))
 end
 
 function nan_tukey_q(means::Vector, vars::Vector, ns::Vector)
 	naninds = isnan.(means) .| isnan.(vars)
-	tukey_q(means[.!naninds], vars[.!naninds], ns)
+	tukey_q_statistic(means[.!naninds], vars[.!naninds], ns)
 end
 
 function get_tukey_qs(measure)
@@ -81,6 +87,10 @@ end
 function nanrowmedian(x)
 	z = x[.!vec(mapslices(y->any(isnan.(y)), x, dims=2)),:]
 	return (length(z) == 0) ? repeat([NaN], size(x,2)) : median(z, dims=1)
+end
+function nanargmax(x) 
+	_x = x[.!isnan.(x)]
+	length(_x) > 0 ? findfirst(x .== maximum(_x)) : nothing
 end
 
 remove_appendix!(df, cols, appendix) = 
@@ -125,8 +135,8 @@ function stat_lines(mean_vals_df, var_vals_df, meas_cols, nexp)
 					var_vals_df[i,k], var_vals_df[j,k], nexp, nexp))
 				# tukey statistic
 				valid_vars = var_vals_df[.!isnan.(var_vals_df[:,k]),k]
-				msw = (nexp-1)*sum(valid_vars)
-				ttm[l,k] = tukey_stat(mean_vals_df[i,k], mean_vals_df[j,k], msw, nexp)
+				msw = mean(valid_vars)
+				ttm[l,k] = tukey_test_statistic(mean_vals_df[i,k], mean_vals_df[j,k], msw, nexp)
 			end
 		end
 	end
@@ -166,13 +176,91 @@ function optimal_fprs(df, measure, max_fpr=1.0)
 	
 	# finally, find the optimal fpr value for each criterion
 	tq_maxi, wt_mean_maxi, wt_med_maxi, tt_mean_maxi, tt_med_maxi = 
-		map(argmax, (tq, wt_mean, wt_med, tt_mean, tt_med))
+		map(nanargmax, (tq, wt_mean, wt_med, tt_mean, tt_med))
 	return Dict(
 			:tukey_q => Dict(:val=>tq[tq_maxi], :fpr=>fprs[tq_maxi]),
 			:tukey_mean => Dict(:val=>tt_mean[tt_mean_maxi], :fpr=>fprs[tt_mean_maxi]),
 			:tukey_median => Dict(:val=>tt_med[tt_med_maxi], :fpr=>fprs[tt_med_maxi]),
 			:welch_mean => Dict(:val=>wt_mean[wt_mean_maxi], :fpr=>fprs[wt_mean_maxi]),
 			:welch_median => Dict(:val=>wt_med[wt_med_maxi], :fpr=>fprs[wt_med_maxi])
+		),
+		fprs
+end
+
+function crit_vals(α, var_vals_df, meas_cols, nexp)
+	# get sizes
+	nr = size(var_vals_df,1)
+	nc = size(var_vals_df,2) # first three columns are not interesting
+	
+	# tukey q and statistic critval - easy, its the same for all columns
+	tqc = tukey_critval(α, nr, (nr-1)*nexp)
+
+	# parwise tukey and welch statistic
+	wcm = zeros(Float32, binomial(nr,2), nc) # welch crit_val matrix
+	l = 0
+	for i in 1:nr-1
+		for j in i+1:nr
+			l += 1
+			for k in 1:nc
+				# welch statistic
+				wcm[l,k] = welch_critval(α, var_vals_df[i,k], var_vals_df[j,k], nexp, nexp)
+			end
+		end
+	end
+	
+	return tqc, wcm
+end
+
+function optimal_fprs_critvals(df, measure, α)
+	# determine some constants
+	fprs = fpr_levels(df, measure)
+	nexp = maximum(df[!,:iteration]) # number of experiments
+
+	# get the dfs with means and variances
+	colnames = names(df)
+	meas_cols = filter(x->occursin(measure, string(x)), colnames)
+	subdf = df[!,vcat([:model, :params, :iteration], meas_cols)]
+	
+	# now get the actual values
+	mean_df = aggregate(subdf, [:model, :params], nanmean);
+	remove_appendix!(mean_df, meas_cols, "nanmean");
+	var_df = aggregate(subdf, [:model, :params], nanvar);
+	remove_appendix!(var_df, meas_cols, "nanvar");
+	mean_vals_df = mean_df[!,meas_cols] # these two only contain the value columns
+	var_vals_df = var_df[!,meas_cols]
+
+	# get sizes
+	nr = size(var_vals_df,1)
+	nc = size(var_vals_df,2) # first three columns are not interesting
+	
+	# get the criterion values
+	tq, wt_mean, wt_med, tt_mean, tt_med = 
+		stat_lines(mean_vals_df, var_vals_df, meas_cols, nexp)
+
+	# get the critvals
+	tqc, wcm = crit_vals(α, var_vals_df, meas_cols, nexp)
+
+	# now get the indices
+	tqi = findfirst(tqc .< tq)
+	ttmeani = findfirst(tqc .< tt_mean)
+	ttmedi = findfirst(tqc .< tt_med) 
+
+	wcrit_vec = vec(nanrowmean(wcm))
+	wtmeani = findfirst(wcrit_vec .< wt_mean)
+	wtmedi = findfirst(wcrit_vec .< wt_med)
+	
+	tqi = tqi == nothing ? nc : tqi
+	ttmeani = ttmeani == nothing ? nc : ttmeani
+	ttmedi = ttmedi == nothing ? nc : ttmedi
+	wtmeani = wtmeani == nothing ? nc : wtmeani
+	wtmedi = wtmedi == nothing ? nc : wtmedi
+
+	return Dict(
+			:tukey_q => Dict(:val=>tq[tqi], :fpr=>fprs[tqi]),
+			:tukey_mean => Dict(:val=>tt_mean[ttmeani], :fpr=>fprs[ttmeani]),
+			:tukey_median => Dict(:val=>tt_med[ttmedi], :fpr=>fprs[ttmedi]),
+			:welch_mean => Dict(:val=>wt_mean[wtmeani], :fpr=>fprs[wtmeani]),
+			:welch_median => Dict(:val=>wt_med[wtmedi], :fpr=>fprs[wtmedi])
 		),
 		fprs
 end
@@ -201,13 +289,18 @@ function add_cols(df, opt_fprs, measures)
 	return newdf
 end
 
-function process_discriminability_data(inpath, dataset, max_fpr)
-	outpath = create_outpath(inpath, dataset)
-	inpath = joinpath(inpath, dataset)
-	# get individual datasets
+function collect_dfs(inpath)
 	infiles = readdir(inpath)
 	dfs = map(x->CSV.read(joinpath(inpath, x)), infiles)
 	alldf = vcat(map(df->drop_cols!(merge_param_cols!(copy(df))), dfs)...);
+	alldf, dfs, infiles
+end
+
+function process_discriminability_data(inpath, dataset, max_fpr, use_critvals=false, α=0.05)
+	outpath = create_outpath(inpath, dataset)
+	inpath = joinpath(inpath, dataset)
+	# get individual datasets
+	alldf, dfs, infiles = collect_dfs(inpath)
 	subsets = unique(alldf[!,:dataset])
 	measures = ["auc_at", "tpr_at"]
 
@@ -215,7 +308,11 @@ function process_discriminability_data(inpath, dataset, max_fpr)
 		# get the df of interest
 		subsetdf = filter(r->r[:dataset]==subset, alldf)
 		# compute the optimal fpr level according to different measure and criterions
-		opt_fprs = map(x->optimal_fprs(subsetdf, x, max_fpr)[1], measures)
+		if use_critvals
+			opt_fprs = map(x->optimal_fprs_critvals(subsetdf, x, α)[1], measures)
+		else
+			opt_fprs = map(x->optimal_fprs(subsetdf, x, max_fpr)[1], measures)
+		end
 
 		# create new dfs with added columns - measures at the selected fpr
 		newdfs = map(x->add_cols(x, opt_fprs, measures), 

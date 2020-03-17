@@ -3,8 +3,10 @@ using ADMetricEvaluation
 
 master_path = ARGS[1]
 max_fpr = 1.0
+use_critvals = true
+α = 0.05
 
 datasets = readdir(master_path)
 for dataset in datasets
-	ADMetricEvaluation.process_discriminability_data(master_path, dataset, max_fpr)
+	ADMetricEvaluation.process_discriminability_data(master_path, dataset, max_fpr, use_critvals, α)
 end
