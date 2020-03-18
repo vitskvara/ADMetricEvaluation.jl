@@ -6,7 +6,7 @@ using Statistics
 using ArgParse
 
 s = ArgParseSettings()
-@add_arg_table s begin
+@add_arg_table! s begin
     "--bootstrapping"
 		action = :store_true
         help = "compute only the bootstrapping tables"

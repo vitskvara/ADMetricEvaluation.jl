@@ -5,7 +5,7 @@ using Statistics
 using ArgParse
 
 s = ArgParseSettings()
-@add_arg_table s begin
+@add_arg_table! s begin
     "--bootstrapping"
 		action = :store_true
         help = "compute only the bootstrapping tables"
@@ -18,14 +18,16 @@ bootstrapping = parsed_args["bootstrapping"]
 discriminability = parsed_args["discriminability"]
 
 function create_df(mean_df, measures, measure_names, sd_df=nothing; colmeans=false,
-	percents=false, shadingdf=nothing, sep_last=false)
+	percents=false, shadingdf=nothing, sep_last=false, submeans=false)
 	df = deepcopy(mean_df)
 	# filter the appropriate columns and rows
 	df = df[!,vcat([:measure], measures)]
 	irows = map(x->x in string.(measures), df[!,:measure])
 	df = df[irows,:]
 	measure_inds = 1:length(measures)
-	if colmeans
+	if colmeans && submeans
+		measure_inds = measure_inds[1:end-3]
+	elseif colmeans
 		measure_inds = measure_inds[1:end-1]
 	end
 	for (i,measure) in enumerate(measures)
@@ -38,7 +40,11 @@ function create_df(mean_df, measures, measure_names, sd_df=nothing; colmeans=fal
 		# add shading to the best and second best row
 		if shadingdf!=nothing
 			sortis = sortperm(shadingdf[!,measure][irows])
-			if colmeans && i==length(measures)
+			if colmeans && submeans && i in length(measures)-2:length(measures)
+				df[!,measure][sortis[1]] = "\\cellcolor{gray!45}"*df[!,measure][sortis[1]]
+				df[!,measure][sortis[2]] = "\\cellcolor{gray!30}"*df[!,measure][sortis[2]]				
+				df[!,measure][sortis[3]] = "\\cellcolor{gray!15}"*df[!,measure][sortis[3]]
+			elseif colmeans && i==length(measures)
 				df[!,measure][sortis[1]] = "\\cellcolor{gray!45}"*df[!,measure][sortis[1]]
 				df[!,measure][sortis[2]] = "\\cellcolor{gray!30}"*df[!,measure][sortis[2]]				
 				df[!,measure][sortis[3]] = "\\cellcolor{gray!15}"*df[!,measure][sortis[3]]
@@ -48,7 +54,9 @@ function create_df(mean_df, measures, measure_names, sd_df=nothing; colmeans=fal
 				df[!,measure][sortis[4]] = "\\cellcolor{gray!15}"*df[!,measure][sortis[4]]				
 			end
 		end
-		if i <= length(measure_inds)
+		if submeans && i <= length(measure_inds)-2
+			df[!,measure][i] = "--"
+		elseif i <= length(measure_inds)
 			df[!,measure][i] = "--"
 		end
 	end
@@ -60,7 +68,9 @@ function create_df(mean_df, measures, measure_names, sd_df=nothing; colmeans=fal
 		rename!(df, old => Symbol(new))
 	end
 	# also, if sep_last, put an empty column before the one with means
-	if sep_last && colmeans
+	if sep_last && colmeans && submeans
+		insertcols!(df, size(df,2)-2, :emptycol=>"")
+	elseif sep_last && colmeans
 		insertcols!(df, size(df,2), :emptycol=>"")
 	end
 	return df
@@ -69,6 +79,7 @@ end
 function construct_tex_tables(data_path, measures, measure_names, filename,
 		caption, label; show_sd=false, colmeans = false, group_measures=false, 
 		sep_last=false, models = ["kNN", "LOF", "IF", "OCSVM"], allsubdatasets=true,
+		submeans = false,
 		 df2tex_kwargs...)
 	if data_path == ""
 		return nothing, nothing, nothing
@@ -84,24 +95,38 @@ function construct_tex_tables(data_path, measures, measure_names, filename,
 		measures = push!(copy(measures), :mean)
 		measure_names = push!(copy(measure_names), "mean")
 	end
+	if submeans
+		map(X->X[!,:mean_at_1]=ADMetricEvaluation.matrix_col_nan_mean(convert(Matrix, 
+			X[!,[:auc_at_1,:tpr_at_1, :prec_at_1, :f1_at_1]])), [mean_diff, sd_diff, 
+			rel_mean_diff, rel_sd_diff])
+		map(X->X[!,:mean_at_5]=ADMetricEvaluation.matrix_col_nan_mean(convert(Matrix, 
+			X[!,[:auc_at_5,:tpr_at_5, :prec_at_5, :f1_at_5]])), [mean_diff, sd_diff, 
+			rel_mean_diff, rel_sd_diff])
+		measures = push!(copy(measures), :mean_at_1)
+		measure_names = push!(copy(measure_names), "mean@0.01")
+		measures = push!(copy(measures), :mean_at_5)
+		measure_names = push!(copy(measure_names), "mean@0.05")
+	end
 	cols = 2:(1+length(measures))
+	ndecimal = 1
 	mean_diff_rounded = PaperUtils.round_string_rpad(mean_diff, ndecimal, cols)
 	sd_diff_rounded = PaperUtils.round_string_rpad(sd_diff, ndecimal, cols)
-	ndecimal = 1
 	map(x->rel_mean_diff[!,x]=rel_mean_diff[!,x]*100, measures)
 	map(x->rel_sd_diff[!,x]=rel_sd_diff[!,x]*100, measures)
 	rel_mean_diff_rounded = PaperUtils.round_string_rpad(rel_mean_diff, ndecimal, cols)
 	rel_sd_diff_rounded = PaperUtils.round_string_rpad(rel_sd_diff, ndecimal, cols)
 	if show_sd 
 		abs_df = create_df(mean_diff_rounded, measures, measure_names, sd_diff_rounded; 
-			colmeans=colmeans, sep_last=sep_last)
+			colmeans=colmeans, sep_last=sep_last, submeans=submeans)
 		rel_df = create_df(rel_mean_diff_rounded, measures, measure_names, rel_sd_diff_rounded;
-	 		colmeans=colmeans, percents = true, shadingdf=rel_mean_diff, sep_last=sep_last)
+	 		colmeans=colmeans, percents = true, shadingdf=rel_mean_diff, sep_last=sep_last,
+	 		submeans=submeans)
 	else
 		abs_df = create_df(mean_diff_rounded, measures, measure_names; 
-			colmeans=colmeans, sep_last=sep_last)
+			colmeans=colmeans, sep_last=sep_last, submeans=submeans)
 		rel_df = create_df(rel_mean_diff_rounded, measures, measure_names;
-	 		colmeans=colmeans, percents = true, shadingdf=rel_mean_diff, sep_last=sep_last)
+	 		colmeans=colmeans, percents = true, shadingdf=rel_mean_diff, sep_last=sep_last,
+	 		submeans=submeans)
 	end
 	#global fname = joinpath(savepath, filename1)
 	#abs_s = PaperUtils.df2tex(abs_df, caption1; label = label1, df2tex_kwargs...)
@@ -117,6 +142,7 @@ function construct_tex_tables(data_path, measures, measure_names, filename,
 	
 	return abs_df, rel_df, rel_s
 end
+
 
 if !bootstrapping && !discriminability
 	savepath = "."
@@ -190,8 +216,9 @@ elseif discriminability
 				"table_measure_comparison_umap_0_by_models_$(crit).tex", 
 				"Means of relative performance loss in a column measure when optimal model and hyperparameters are selected using the row measure. UMAP dataset, 0\\% training contamination.",
 				"tab:measure_comparison_umap_0_by_models_$(crit)"; 
-				colmeans=true, sep_last=true,
-				asterisk = true, fittext=true, vertcolnames=true)
+				colmeans=true, sep_last=true, submeans = true,
+				asterisk = true, fittext=true, vertcolnames=true 
+				)
 				
 		abs_df_full_5, rel_df_full_5, rel_s_full_5 = construct_tex_tables(
 				path5,
@@ -200,7 +227,7 @@ elseif discriminability
 				"table_measure_comparison_full_5_by_models_$(crit).tex", 
 				"Means of relative performance loss in a column measure when optimal model and hyperparameters are selected using the row measure. 5\\% training contamination.",
 				"tab:measure_comparison_full_5_by_models_$(crit)"; 
-				colmeans=true, sep_last=true,
+				colmeans=true, sep_last=true, submeans = true,
 				asterisk = true, fittext=true, vertcolnames=true)
 
 		abs_df_full_0, rel_df_full_0, rel_s_full_0 = construct_tex_tables(
@@ -210,7 +237,7 @@ elseif discriminability
 				"table_measure_comparison_full_0_by_models_$(crit).tex", 
 				"Means of relative loss in a column measure when optimal model and hyperparameters are selected using the row measure. 0\\%  training contamination. Level of shading highlights three best results in a column.",
 				"tab:measure_comparison_full_0_by_models_$(crit)"; 
-				colmeans=true, sep_last=true,
+				colmeans=true, sep_last=true, submeans = true,
 				asterisk = true, fittext=true, vertcolnames=true)
 
 		abs_df_full_1, rel_df_full_1, rel_s_full_1 = construct_tex_tables(
@@ -220,7 +247,7 @@ elseif discriminability
 				"table_measure_comparison_full_1_by_models_$(crit).tex", 
 				"Means of relative loss in a column measure when optimal model and hyperparameters are selected using the row measure. 1\\% contamination.",
 				"tab:measure_comparison_full_1_by_models_$(crit)"; 
-				colmeans=true, sep_last=true,
+				colmeans=true, sep_last=true, submeans = true,
 				asterisk = true, fittext=true, vertcolnames=true)
 	end
 else

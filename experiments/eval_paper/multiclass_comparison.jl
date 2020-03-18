@@ -8,7 +8,7 @@ using PyPlot
 using ArgParse
 
 s = ArgParseSettings()
-@add_arg_table s begin
+@add_arg_table! s begin
     "--bootstrapping"
 		action = :store_true
         help = "compute only the bootstrapping tables"
@@ -337,7 +337,7 @@ elseif discriminability
 		meas_names,
 		"tab:multiclass_all_means_umap_0", 
 		"All UMAP datasets, mean of multiclass sensitivities, 0\\% training contamination."; shade = true, 
-		vertcolnames=true)
+		vertcolnames=true, fittext=true)
 
 	all_means_df_full = compute_means_across_datasets(max_dfs_full0, fig_meas)
 	all_str_df_full, all_tex_str_full = create_tex_table(
@@ -346,7 +346,7 @@ elseif discriminability
 		meas_names,
 		"tab:multiclass_all_means_full_0", 
 		"All full datasets, mean of multiclass sensitivities, 0\\% training contamination."; shade = true, 
-		vertcolnames=true)
+		vertcolnames=true, fittext=true)
 else
 	savepath = "/home/vit/vyzkum/measure_evaluation/bootstrapping"
 	measures = 	[:auc, :auc_bs, :auc_gmm, :auc_gmm_5000, :auc_weighted, 
