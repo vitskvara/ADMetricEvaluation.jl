@@ -4,7 +4,7 @@ using ADMetricEvaluation
 master_path = ARGS[1]
 max_fpr = 1.0
 use_critvals = true
-α = 0.05
+α = 0.01
 
 datasets = readdir(master_path)
 for dataset in datasets
