@@ -67,7 +67,7 @@ where $N$ is the total number of populations (comapred model/hyperparameter comb
 \section{Results}
 The tables \ref{tab:measure_comparison_full_0_by_models_tukey_mean}--\ref{tab:measure_comparison_full_0_by_models_welch_median} summarize an experiment that show us how robust a measure is with respect to the others. In other words, this is an answer to the question "How much worse in terms of measure A is model selected using measure B than that selected by using A?", where A is the column measure and B is the row measure. We select a model (one out of $\sum_{n=1}^N I_n$) that performs (on average over the $k$ folds) the best on the testing dataset using the row measure. Then we look at the value of the column measure of the same model $x_{base}$ and compare it to the best value of the column measure across all models $x_{max}$. Then we compute the relative measure loss $(x_{max}-x_{base})/x_{max}$.  The table entries are means over all datasets.
 
-For \emph{welch_mean, welch_median} we compute all pairwise tests
+For \emph{welch mean, welch median} we compute all pairwise tests.
 
 \input{tables/measure_comparison_full_0_by_models_tukey_mean_alpha-5.tex}
 \input{tables/measure_comparison_full_0_by_models_tukey_median_alpha-5.tex}
