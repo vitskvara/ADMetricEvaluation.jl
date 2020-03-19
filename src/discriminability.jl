@@ -24,7 +24,6 @@ welch_critval(α::Real, σ1::Real, σ2::Real, n1::Int, n2::Int) =
 welch_pval(t::Real, df::Int) = 1-cdf(TDist(df), t) # onesided version
 welch_pval(t::Real, df::Real) = isnan(df) ? NaN : 1-cdf(TDist(df), t) # onesided version
 
-
 tukey_test_statistic(μ1::Real, μ2::Real, msw::Real, n::Int) = (max(μ1,μ2)-min(μ1,μ2))/sqrt(msw/n)
 # k = number of groups, df = (N - k) = (total samples - k)
 crit_srd(α::Real, k::Real, df::Real) = (isnan(k) | isnan(df)) ? NaN : quantile(StudentizedRange(df, k), 1-α)
@@ -193,7 +192,7 @@ function crit_vals(α, var_vals_df, meas_cols, nexp)
 	nc = size(var_vals_df,2) # first three columns are not interesting
 	
 	# tukey q and statistic critval - easy, its the same for all columns
-	tqc = tukey_critval(α, nr, (nr-1)*nexp)
+	tqc = tukey_critval(α, nr, (nexp-1)*nr)
 
 	# parwise tukey and welch statistic
 	wcm = zeros(Float32, binomial(nr,2), nc) # welch crit_val matrix

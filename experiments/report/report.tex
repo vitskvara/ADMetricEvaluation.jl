@@ -29,7 +29,7 @@ The problem of unsupervised anomaly detection in unknown conditions requires the
 Now there is a question -- when not given from the outside, what is the optimal operating false positive rate $p$ at which we should measure TPR@$p$ and AUC@$p$ so that we select the best model? This depends on our definition of what is the best model. We may want to choose such a $p$ at which the tested model performance is most distinguishable. We may want it to choose a model that is the most robust with respect to differences in testing and validation/application data. 
 
 \section{Discriminability criteria}
-The experimental design is following. There are $N$ different models, each with a set of $\theta_{n} = \lbrace \theta_{ni} \rbrace_{i=1}^{I_n}$ hyperparameter settings. We split a dataset into a training and testing subsets. We train the model on the training subset and evaluate the measures on the testing subset. This training and valdiation loop is done in a $k$-fold validation scheme, that is the split is done $k$ times for each basic dataset. This results in a total of $k \sum_{n=1}^N I_n$ experiments. In our basic experiments, we have $N=4, k=10$. The models and hyperparameters settings are summarized in \ref{tab:hyperparams}. We have $k \sum_{n=1}^N I_n = 10 \cdot (27 + 3 + 3 + 9) = 420$. 
+The experimental design is following. There are $M$ different models, each with a set of $\theta_{i} = \lbrace \theta_{ij} \rbrace_{j=1}^{I_i}$ hyperparameter settings for a total of $N=\sum_{i=1}^M I_i$ different model/hyperparameter combinations. We split a dataset into a training and testing subsets. We train the model on the training subset and evaluate the measures on the testing subset. This training and valdiation loop is done in a $k$-fold validation scheme, that is the split is done $k$ times for each basic dataset. This results in a total of $k\cdot K$ experiments. In our basic experiments, we have $M=4, k=10$. The models and hyperparameters settings are summarized in \ref{tab:hyperparams}. Theres is a total of $k \sum_{i=1}^M I_i = 10 \cdot (27 + 3 + 3 + 9) = 420$ experiments done for each dataset. 
 
 \input{tables/hyperparams.tex}
 
@@ -44,11 +44,23 @@ The hypothesis $H_0$ is $\mu_i = \mu_j$. Under $H_0$, $t^W_{ij}$ is from the t-d
 \begin{equation}
 	\nu = \frac{\left( \sigma_i^2/N_i + \sigma_j^2/N_j\right)^2}{\frac{\sigma_i^4}{N^2_i(N_i-1)} + \frac{\sigma_j^4}{N^2_j(N_j-1)}}.
 \end{equation}
-We apply a two-tailed test on a confidence level $\alpha$, where the critical value $t^W_c = f_q^\text{T}(\nu, 1-\alpha/2)$, where $f_q^T$ is the quantile function of the Student's t-distribution. If $t^W_{ij} \notin (-t^W_c, t^W_c)$, we reject $H_0$. The p-value of welch statistic is
+We apply a two-tailed test on a confidence level $\alpha$, where the critical value $t^W_c = f_q^\text{T}(\nu, 1-\alpha/2)$, where $f_q^T$ is the quantile function of the Student's t-distribution. If $t^W_{ij} \notin (-t^W_c, t^W_c)$, we reject $H_0$. The p-value of Welch statistic is
 \begin{equation}
 	p^W = 1-\text{cdf}^\text{T}(\nu, t^W_{ij}),
 \end{equation}
 where $\text{cdf}^\text{T}$ is the cumulative distribution function of the Student's t-distribution. TODO: add the section for multiple comaprison as in \cite{welch1951comparison}.
+
+\subsection{Tukey's test}
+Assumes normality and homogenity of variance across groups. The test statistic is
+\begin{equation}
+	q^s_{ij} = \frac{|\mu_i - \mu_j|}{\sqrt{\frac{MSW}{k}}},
+\end{equation}
+where $MSW$ should be the mean squares within. We interpret it as the mean variance across the experiment
+\begin{equation}
+	MSW = \frac{1}{N}\sum_i \sigma^2_i,
+\end{equation}
+where $N$ is the total number of populations (comapred model/hyperparameter combinations) and $k$ is the number of samples (coming from $k$-fold crossvalidation). The test statistic is compared to the studentized range distribution with parameters $\nu = N(k-1)$ (degrees of freedom) and $N$.
+
 
 
 
