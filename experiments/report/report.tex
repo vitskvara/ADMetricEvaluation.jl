@@ -61,9 +61,6 @@ where $MSW$ should be the mean squares within. We interpret it as the mean varia
 \end{equation}
 where $N$ is the total number of populations (comapred model/hyperparameter combinations) and $k$ is the number of samples (coming from $k$-fold crossvalidation). The test statistic is compared to the studentized range distribution with parameters $\nu = N(k-1)$ (degrees of freedom) and $N$.
 
-
-
-
 \section{Results}
 The tables \ref{tab:measure_comparison_full_0_by_models_tukey_mean}--\ref{tab:measure_comparison_full_0_by_models_welch_median} summarize an experiment that show us how robust a measure is with respect to the others. In other words, this is an answer to the question "How much worse in terms of measure A is model selected using measure B than that selected by using A?", where A is the column measure and B is the row measure. We select a model (one out of $\sum_{n=1}^N I_n$) that performs (on average over the $k$ folds) the best on the testing dataset using the row measure. Then we look at the value of the column measure of the same model $x_{base}$ and compare it to the best value of the column measure across all models $x_{max}$. Then we compute the relative measure loss $(x_{max}-x_{base})/x_{max}$.  The table entries are means over all datasets.
 
@@ -77,6 +74,22 @@ For \emph{welch mean, welch median} we compute all pairwise tests.
 
 \section{What are better alternatives to AUC?}
 It seems that the better alterantives for AUC are AUC@$p$ and TPR@$p$. The first one is more preferable, since it is more robust due to being an integral. Also, it brings more discriminability at higher values of $p$. This is due to the fact that at a given $p$, it is more likely that two ROC curves will have the same value of TPR as opposed to the whole integral up to $p$, where even a difference in a single (FPR,TPR) pair leads to two different values of AUC@$p$.
+
+What are the best weighting functions?
+\begin{itemize}
+	\item universal -- easy to implement
+	\item data-specific -- 
+\end{itemize}
+
+We should not use a cross--model information because that is a very difficult and most importantly a completely different task than what we aoriginaly intended. So instead of doing optimal fpr level selection based on discriminability, we should try to propose a universal measure independent on precomputed model performance.
+
+Or we go forwards with the discriminability:
+\begin{itemize}
+	\item use adjusted pvals from Demšar/Garcia paper
+	\item use some other way to measure discriminability, e.g. the number of discriminable pairs of models
+\end{itemize}
+
+We should also check if we have not already answered some of the issues that the reviewers had with the paper, such as explaining why AUC@5 is so good.
 
 \bibliographystyle{acm}
 \bibliography{bibliography}

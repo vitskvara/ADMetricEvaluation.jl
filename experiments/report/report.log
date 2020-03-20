@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.18 (TeX Live 2017/Debian) (preloaded format=pdflatex 2019.2.19)  19 MAR 2020 10:17
+This is pdfTeX, Version 3.14159265-2.6-1.40.18 (TeX Live 2017/Debian) (preloaded format=pdflatex 2019.2.19)  19 MAR 2020 12:28
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -1081,36 +1081,28 @@ line 39.
 [1
 
 {/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}]
-
-LaTeX Warning: Citation `welch1951comparison' on page 2 undefined on input line
- 51.
-
-
-LaTeX Warning: Reference `tab:measure_comparison_full_0_by_models_tukey_mean' o
-n page 2 undefined on input line 68.
-
-
-LaTeX Warning: Reference `tab:measure_comparison_full_0_by_models_welch_median'
- on page 2 undefined on input line 68.
-
 (./tables/measure_comparison_full_0_by_models_tukey_mean_alpha-5.tex)
 (./tables/measure_comparison_full_0_by_models_tukey_median_alpha-5.tex)
 (./tables/measure_comparison_full_0_by_models_tukey_q_alpha-5.tex)
 (./tables/measure_comparison_full_0_by_models_welch_mean_alpha-5.tex)
 (./tables/measure_comparison_full_0_by_models_welch_median_alpha-5.tex)
-(./report.bbl) [2] [3] [4] (./report.aux)
+LaTeX Font Info:    Try loading font information for OMS+cmr on input line 80.
+
+(/usr/share/texlive/texmf-dist/tex/latex/base/omscmr.fd
+File: omscmr.fd 2014/09/29 v2.5h Standard LaTeX font definitions
+)
+LaTeX Font Info:    Font shape `OMS/cmr/m/n' in size <10> not available
+(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 80.
+ [2] [3] (./report.bbl) [4] (./report.aux)
 
 LaTeX Warning: There were undefined references.
 
-
-LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
-
  ) 
 Here is how much of TeX's memory you used:
- 23984 strings out of 494816
- 610489 string characters out of 6177863
+ 24001 strings out of 494816
+ 610781 string characters out of 6177863
  860019 words of memory out of 5000000
- 26845 multiletter control sequences out of 15000+600000
+ 26859 multiletter control sequences out of 15000+600000
  11849 words of font info for 46 fonts, out of 8000000 for 9000
  69 hyphenation exceptions out of 8191
  69i,12n,98p,927b,609s stack positions out of 5000i,500n,10000p,200000b,80000s
@@ -1127,7 +1119,7 @@ s/cm/cmr5.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr
 7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb>
 </usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/s
 hare/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb>
-Output written on report.pdf (4 pages, 164686 bytes).
+Output written on report.pdf (4 pages, 166149 bytes).
 PDF statistics:
  76 PDF objects out of 1000 (max. 8388607)
  55 compressed objects within 1 object stream
