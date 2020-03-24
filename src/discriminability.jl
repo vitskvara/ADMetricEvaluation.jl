@@ -29,6 +29,20 @@ tukey_test_statistic(μ1::Real, μ2::Real, msw::Real, n::Int) = (max(μ1,μ2)-mi
 crit_srd(α::Real, k::Real, df::Real) = (isnan(k) | isnan(df)) ? NaN : quantile(StudentizedRange(df, k), 1-α)
 tukey_critval(α::Real, k::Real, df::Real) = crit_srd(α/2, k, df)
 
+# R = mean ranks, n = number of datasets, k = number of models
+friedman_test_statistic(R::Vector,n::Int,k::Int) = 12*n/(k*(k+1))*(sum(R.^2) - k*(k+1)^2/4)
+# k = number of models
+crit_chisq(α::Real, df::Int) = quantile(Chisq(df), 1-α)
+friedman_critval(α::Real, k::Int) = crit_chisq(α/2, k-1)
+
+# adjusted friedman
+function adjusted_friedman_test_statistic(R::Vector, n::Int, k::Int)
+	F = friedman_test_statistic(R,n,k)
+	((n-1)*F)/(n*(k-1)-F)
+end
+crit_f(α::Real, df1::Int, df2::Int) = quantile(FDist(df1, df2), 1-α)
+adjusted_friedman_critval(α::Real, n::Int, k::Int) = crit_f(α/2, k-1, (k-1)*(n-1))
+
 function get_tukey_stats(measure)
 	tk_stats = Dict(zip(mpair_symbols, [Dict(:vals=>[], :fpr=>[]) for _ in mpairs]))
 	for ifpr in 1:length(fprs)
@@ -248,11 +262,11 @@ function optimal_fprs_critvals(df, measure, α)
 	wtmeani = findfirst(wcrit_vec .< wt_mean)
 	wtmedi = findfirst(wcrit_vec .< wt_med)
 	
-	tqi = tqi == nothing ? nc : tqi
-	ttmeani = ttmeani == nothing ? nc : ttmeani
-	ttmedi = ttmedi == nothing ? nc : ttmedi
-	wtmeani = wtmeani == nothing ? nc : wtmeani
-	wtmedi = wtmedi == nothing ? nc : wtmedi
+	tqi = tqi == nothing ? 1 : tqi
+	ttmeani = ttmeani == nothing ? 1 : ttmeani
+	ttmedi = ttmedi == nothing ? 1 : ttmedi
+	wtmeani = wtmeani == nothing ? 1 : wtmeani
+	wtmedi = wtmedi == nothing ? 1 : wtmedi
 
 	return Dict(
 			:tukey_q => Dict(:val=>tq[tqi], :fpr=>fprs[tqi]),
