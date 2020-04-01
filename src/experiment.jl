@@ -1,3 +1,5 @@
+using EvalCurves: f1_at_fpr, beta_auc, localized_auc
+
 """
 	precision_at_p(score_fun, X, y, p::Real; seed = nothing)
 
@@ -45,6 +47,13 @@ function clusterdness(X,y)
 end
 
 """
+	score_fun(m,X)
+
+Score function for SKLearn models.
+"""
+score_fun(m,X) = -ScikitLearn.decision_function(m, Array(transpose(X))) 
+
+"""
 	experiment(model, parameters, X_train, y_train, X_test, y_test;
 	mc_volume_iters::Int = 100000, mc_volume_repeats::Int = 10)
 
@@ -57,7 +66,7 @@ function experiment(model, parameters, X_train, y_train, X_test, y_test;
 	m = model(parameters...)
 	try
 		ScikitLearn.fit!(m, Array(transpose(X_train)))
-		score_fun(X) = -ScikitLearn.decision_function(m, Array(transpose(X))) 
+		score_fun(X) = -ScikitLearn.decision_function(m, Array(transpose(X)))
 		scores = score_fun(X_test)
 
 		# now compute the needed metrics
@@ -259,7 +268,7 @@ function discriminability_experiment(model, parameters, X_train, y_train, X_test
 
 	try
 		ScikitLearn.fit!(m, Array(transpose(X_train)))
-		score_fun(X) = -ScikitLearn.decision_function(m, Array(transpose(X))) 
+		score_fun(X) = -ScikitLearn.decision_function(m, Array(transpose(X)))
 		scores = score_fun(X_test)
 
 		# now compute the needed metrics
@@ -300,7 +309,90 @@ function discriminability_experiment(model, parameters, X_train, y_train, X_test
 	push!(metric_vals, resvec)
 		
 	return metric_vals
+end
 
+function _try_measure_computation(f, args...; throw_errs=false, kwargs...)
+	try
+		return [f(args...;kwargs...)]
+	catch e
+		if isa(e, ArgumentError)
+			println("Error in predict:")
+			println(e)
+			println("")
+		else
+			throw_errs ? rethrow(e) : nothing
+		end
+		return [NaN]
+	end
+end
+
+"""
+	evaluate_val_test_experiment(model, X, y, fprs; nsamples=1000, throw_errs = true)
+
+Evaluate the model on data.
+"""
+function evaluate_val_test_experiment(model, X, y, fprs; nsamples=1000, throw_errs = true)
+	# compute following:
+	# auc, auc_w, βauc@all, auc@all, tpr@all, prec@all, lauc@all
+	measures = DataFrame()
+
+	# get scores and the roc curve
+	score_fun(X) = -ScikitLearn.decision_function(model, Array(transpose(X)))
+	scores = score_fun(X)
+	fprvec, tprvec = roccurve(scores, y)
+	
+	# basic measures
+	measures[!,:auc] = _try_measure_computation(auc, fprvec, tprvec)
+	measures[!,:auc_weighted] = _try_measure_computation(auc, fprvec, tprvec, "1/x")
+	
+	# now the rest
+	for fpr in fprs
+		sfpr = "$(round(Int,100*fpr))"
+		measures[!,Symbol("auc_at_$sfpr")] = 
+			_try_measure_computation(auc_at_p, fprvec,tprvec,fpr; throw_errs = throw_errs, normalize = true)
+		measures[!,Symbol("tpr_at_$sfpr")] = 
+			_try_measure_computation(tpr_at_fpr, fprvec,tprvec,fpr; throw_errs = throw_errs)
+		measures[!,Symbol("prec_at_$sfpr")] = 
+			_try_measure_computation(mean_precision_at_p, score_fun, X, y, fpr; throw_errs = throw_errs)
+		measures[!,Symbol("f1_at_$sfpr")] = 
+			_try_measure_computation(f1_at_fpr, scores, y, fpr; throw_errs = throw_errs, warns=false)
+		measures[!,Symbol("bauc_at_$sfpr")] = 
+			_try_measure_computation(beta_auc, scores, y, fpr, nsamples; 
+				throw_errs = throw_errs, d=0.5, warns=false)
+		measures[!,Symbol("lauc_at_$sfpr")] = 
+			_try_measure_computation(localized_auc, scores, y, fpr, nsamples; 
+				throw_errs = throw_errs, d=0.5, normalize=true, warns=false)
+	end
+	return measures
+end
+
+"""
+	val_test_experiment(model, parameters, X_train, y_train, X_val, y_val, X_test, y_test,
+	fprs)
+
+Validation-test experiment (for βAUC evaluation).
+"""
+function val_test_experiment(model, parameters, X_train, y_train, X_val, y_val,
+	X_tst, y_tst, fprs)
+	# create and fit the model
+	m = model(parameters...)
+	try
+		ScikitLearn.fit!(m, Array(transpose(X_train)))
+	catch e
+		if isa(e, ArgumentError)
+			println("Error in fit:")
+			println(e)
+			println("")
+		else
+			rethrow(e)
+		end
+	end
+	
+	# compute eval and test scores
+	measures_val = evaluate_val_test_experiment(m, X_val, y_val, fprs; nsamples=1000, throw_errs = true)
+	measures_tst = evaluate_val_test_experiment(m, X_tst, y_tst, fprs; nsamples=1000, throw_errs = true)
+
+	return measures_val, measures_tst
 end
 
 """
@@ -336,8 +428,72 @@ function experiment_nfold(model, parameters, param_names, data::UCI.ADDataset;
 	return vcat(results...)
 end
 
+"""
+	val_test_experiment_nfold(model, parameters, param_names, data::UCI.ADDataset; 
+		n_experiments::Int = 10, p::Real = 0.6, contamination::Real=0.05, 
+		test_contamination = nothing, standardize=false, 
+		fprs = collect(range(0.01,0.99,length=99)))
 
-gridsearch(f, parameters...) = vcat(map(f, Base.product(parameters...))...)
+Run the experiment n times with different resamplings of data.
+"""
+function val_test_experiment_nfold(model, parameters, param_names, data::UCI.ADDataset; 
+	n_experiments::Int = 10, p::Real = 0.6, contamination::Real=0.05, 
+	test_contamination = nothing, standardize=false, 
+	fprs = collect(range(0.01,0.99,length=99)))
+	results_val = []
+	results_tst = []
+	for iexp in 1:n_experiments
+		X_tr, y_tr, X_val_tst, y_val_tst = UCI.split_data(data, p, contamination;
+			test_contamination = test_contamination, seed = iexp, standardize=standardize)
+		X_val, y_val, X_tst, y_tst = UCI.split_val_test(X_val_tst, y_val_tst);
+		res_val, res_tst = val_test_experiment(model, parameters, X_tr, y_tr, X_val, y_val,
+			X_tst, y_tst, fprs)
+		
+		for (par_name, par_val) in zip(param_names, parameters)
+			insertcols!(res_val, 1, par_name=>par_val) 
+			insertcols!(res_tst, 1, par_name=>par_val) 
+			# append the column to the beginning of the df
+		end
+		insertcols!(res_val, 1, :iteration=>iexp)
+		insertcols!(res_tst, 1, :iteration=>iexp)
+		push!(results_val, res_val)
+		push!(results_tst, res_tst)
+	end
+	return vcat(results_val...), vcat(results_tst...)
+end
+
+"""
+	run_val_test_experiment(model, model_name, param_vals, param_names, data::ADDataset, dataset_name;
+	save_path = "", exp_nfold_kwargs...)
+
+This iterates for a selected model over all params and dataset resampling iterations. 
+If savepath is specified, saves the result in the given path.
+"""
+function run_val_test_experiment(model, model_name, param_vals, param_names, data::UCI.ADDataset, dataset_name;
+	save_path = "", exp_nfold_kwargs...)
+    res_val, res_tst = gridsearch(x -> val_test_experiment_nfold(model, x, param_names, data; exp_nfold_kwargs...), param_vals...)
+    insertcols!(res_val, 1, :model=>model_name)
+    insertcols!(res_val, 1, :dataset=>dataset_name)
+    insertcols!(res_tst, 1, :model=>model_name)
+    insertcols!(res_tst, 1, :dataset=>dataset_name)
+    if save_path != ""
+    	CSV.write(joinpath(save_path, "$(dataset_name)_$(model_name)_validation.csv"), res_val)
+    	CSV.write(joinpath(save_path, "$(dataset_name)_$(model_name)_test.csv"), res_tst)
+    end
+    return res_val, res_tst
+end
+
+#gridsearch(f, parameters...) = vcat(map(f, Base.product(parameters...))...)
+function gridsearch(f, parameters...)
+	res = map(f, Base.product(parameters...))
+	# this should work in the case that the function f returns more than one value (df)
+	if typeof(res[1]) <: Tuple
+		n = length(res[1])
+		return [vcat([x[i] for x in res]...) for i in 1:n]
+	else
+		return vcat(res...)
+	end
+end
 
 """
 	run_experiment(model, model_name, param_vals, param_names, data::ADDataset, dataset_name;
@@ -359,12 +515,12 @@ end
 
 """
 	run_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
-	data_path = "", exp_kwargs...)
+	data_path = "", val_test=false, exp_kwargs...)
 
 Runs the experiment for a given dataset.
 """
 function run_experiment(dataset_name, model_list, model_names, param_struct, master_save_path;
-	data_path = "", exp_kwargs...)
+	data_path = "", val_test = false, exp_kwargs...)
 	# load data
 	raw_data = UCI.get_data(dataset_name, path=data_path)
 	multiclass_data = UCI.create_multiclass(raw_data...)
@@ -378,8 +534,13 @@ function run_experiment(dataset_name, model_list, model_names, param_struct, mas
 		dataset_label = (class_label=="" ? dataset_name : dataset_name*"-"*class_label)
 		# and over all models 
 		for (model, model_name, params) in zip(model_list, model_names, param_struct)
-			res = run_experiment(model, model_name, params[1], params[2], data, dataset_label; 
-				save_path = save_path, exp_kwargs...)
+			if val_test
+				res = run_val_test_experiment(model, model_name, params[1], params[2], data, dataset_label; 
+					save_path = save_path, exp_kwargs...)
+			else
+				res = run_experiment(model, model_name, params[1], params[2], data, dataset_label; 
+					save_path = save_path, exp_kwargs...)
+			end
 			push!(results, res)
 			ProgressMeter.next!(p; showvalues = [(:dataset,dataset_label), (:model,model_name)])
 		end
