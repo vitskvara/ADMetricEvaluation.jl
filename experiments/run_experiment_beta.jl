@@ -1,7 +1,7 @@
 # run experiment on the full dataset
 import ADMetricEvaluation
 ADME = ADMetricEvaluation
-using ArgParse
+using ArgParse, UCI
 
 s = ArgParseSettings()
 @add_arg_table! s begin
