@@ -326,19 +326,52 @@ function _try_measure_computation(f, args...; throw_errs=false, kwargs...)
 	end
 end
 
+function _empty_res(fprs)
+	measures = DataFrame()
+
+	# basic measures
+	measures[!,:auc] = [NaN]
+	measures[!,:auc_weighted] = [NaN]
+	
+	# now the rest
+	for fpr in fprs
+		sfpr = "$(round(Int,100*fpr))"
+		measures[!,Symbol("auc_at_$sfpr")] = [NaN]
+		measures[!,Symbol("tpr_at_$sfpr")] = [NaN]
+		measures[!,Symbol("prec_at_$sfpr")] = [NaN]
+		measures[!,Symbol("f1_at_$sfpr")] = [NaN]
+		measures[!,Symbol("bauc_at_$sfpr")] = [NaN]
+		measures[!,Symbol("lauc_at_$sfpr")] = [NaN]
+	end
+
+	return measures
+end
+
 """
 	evaluate_val_test_experiment(model, X, y, fprs; nsamples=1000, throw_errs = true)
 
 Evaluate the model on data.
 """
-function evaluate_val_test_experiment(model, X, y, fprs; nsamples=1000, throw_errs = true)
+function evaluate_val_test_experiment(model, X, y, fprs; nsamples=1000, throw_errs = true, 
+	err_warns = true)
 	# compute following:
 	# auc, auc_w, βauc@all, auc@all, tpr@all, prec@all, lauc@all
 	measures = DataFrame()
 
 	# get scores and the roc curve
 	score_fun(X) = -ScikitLearn.decision_function(model, Array(transpose(X)))
-	scores = score_fun(X)
+	scores = try
+		score_fun(X)
+	catch e
+		if isa(e, ArgumentError) && err_warns
+			println("Error in predict:")
+			println(e)
+			println("")
+		else
+			throw_errs ? rethrow(e) : nothing
+		end
+		return _empty_res(fprs)
+	end
 	fprvec, tprvec = roccurve(scores, y)
 	
 	# basic measures
@@ -373,7 +406,7 @@ end
 Validation-test experiment (for βAUC evaluation).
 """
 function val_test_experiment(model, parameters, X_train, y_train, X_val, y_val,
-	X_tst, y_tst, fprs)
+	X_tst, y_tst, fprs; throw_errs = true, err_warns = true)
 	# create and fit the model
 	m = model(parameters...)
 	try
@@ -389,8 +422,10 @@ function val_test_experiment(model, parameters, X_train, y_train, X_val, y_val,
 	end
 	
 	# compute eval and test scores
-	measures_val = evaluate_val_test_experiment(m, X_val, y_val, fprs; nsamples=1000, throw_errs = true)
-	measures_tst = evaluate_val_test_experiment(m, X_tst, y_tst, fprs; nsamples=1000, throw_errs = true)
+	measures_val = evaluate_val_test_experiment(m, X_val, y_val, fprs; 
+		nsamples=1000, throw_errs = throw_errs, err_warns = err_warns)
+	measures_tst = evaluate_val_test_experiment(m, X_tst, y_tst, fprs; 
+		nsamples=1000, throw_errs = throw_errs, err_warns = err_warns)
 
 	return measures_val, measures_tst
 end
@@ -439,7 +474,7 @@ Run the experiment n times with different resamplings of data.
 function val_test_experiment_nfold(model, parameters, param_names, data::UCI.ADDataset; 
 	n_experiments::Int = 10, p::Real = 0.6, contamination::Real=0.05, 
 	test_contamination = nothing, standardize=false, 
-	fprs = collect(range(0.01,0.99,length=99)))
+	fprs = collect(range(0.01,0.99,length=99)), exp_kwargs...)
 	results_val = []
 	results_tst = []
 	for iexp in 1:n_experiments
@@ -447,7 +482,7 @@ function val_test_experiment_nfold(model, parameters, param_names, data::UCI.ADD
 			test_contamination = test_contamination, seed = iexp, standardize=standardize)
 		X_val, y_val, X_tst, y_tst = UCI.split_val_test(X_val_tst, y_val_tst);
 		res_val, res_tst = val_test_experiment(model, parameters, X_tr, y_tr, X_val, y_val,
-			X_tst, y_tst, fprs)
+			X_tst, y_tst, fprs;  exp_kwargs...)
 		
 		for (par_name, par_val) in zip(param_names, parameters)
 			insertcols!(res_val, 1, par_name=>par_val) 

@@ -4,7 +4,7 @@ ADME = ADMetricEvaluation
 using ArgParse
 
 s = ArgParseSettings()
-@add_arg_table s begin
+@add_arg_table! s begin
     "dataset"
 		required = true
         help = "dataset"
@@ -31,6 +31,13 @@ s = ArgParseSettings()
     	arg_type = Int
     	default = 10
     	help = "number of different seeds for train/test split"
+    "--max-fpr"
+        arg_type = Float64
+        default = 0.2
+        help = "the maximum admissible fpr"
+    "--test"
+        action = :store_true
+        help = "test run"
 end
 parsed_args = parse_args(ARGS, s)
 dataset = parsed_args["dataset"]
@@ -38,6 +45,8 @@ outpath = parsed_args["outpath"]
 tr_contamination = parsed_args["train-contamination"]
 model_names = parsed_args["models"]
 tst_contamination = (parsed_args["test-contamination"] == -1) ? nothing : parsed_args["test-contamination"]
+max_fpr = parsed_args["max-fpr"]
+testrun = parsed_args["test"]
 
 include("models.jl")
 
@@ -56,6 +65,7 @@ println("Output is going to be saved to "*outpath)
 # settings
 n_experiments = parsed_args["nexperiments"]
 p = 0.6
+fprs = collect(range(0.01, max_fpr, step=0.01))
 
 # models
 default_model_names = ["kNN", "LOF", "OCSVM", "IF"]
@@ -80,6 +90,16 @@ if parsed_args["umap"]
 else
 	global data_path = ""
 end
+
+if testrun
+    dataset = "iris"
+    models = [kNN_model]
+    model_names = ["kNN"]
+    param_struct = [
+                ([[1], [:gamma]], [:k,:metric])
+             ]
+    outpath = abspath(".")
+end
 @time res = ADME.run_experiment(
 	dataset, models, model_names, param_struct, outpath;
 	data_path = data_path,
@@ -88,5 +108,7 @@ end
 	p = p, 
 	contamination=tr_contamination, 
 	standardize=true,
-	test_contamination = tst_contamination
+	test_contamination = tst_contamination,
+    throw_errs = false,
+    err_warns = false
 	)
