@@ -1,6 +1,6 @@
 nan_mean(x) = Statistics.mean(x[.!isnan.(x)])
 matrix_col_nan_mean(X) =
-	map(i->ADMetricEvaluation.nan_mean(X[i,:]), 1:size(X,1))
+	map(i->nan_mean(X[i,:]), 1:size(X,1))
 
 function average_over_folds(df)
 	if df[!,:model][1] == "IF"
@@ -41,8 +41,10 @@ function merge_param_cols!(df)
 	insertcols!(df, 3, :params=>col)
 end
 
-function loaddata(dataset::String, path; allsubdatasets=true)
+function loaddata(dataset::String, path; allsubdatasets=true, data_type="")
 	subdatasets = readdir(joinpath(path, dataset))
+	# filter for test/validation
+	subdatasets = filter(x->occursin(data_type, x), subdatasets)
 	if !allsubdatasets
 		subdatasets=subdatasets[1:4]
 	end
@@ -247,22 +249,20 @@ function collect_fold_averages(data_path, metrics = [:auc, :auc_weighted, :auc_a
 		:tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1];
 		#pareto_optimal=false, 
 		models = ["kNN", "LOF", "IF", "OCSVM"],
-		allsubdatasets = true)
+		allsubdatasets = true,
+		data_type = "")
 	# get the list of datasets in the master path
 	datasets = readdir(data_path)
 	# now collect the averages over folds 
 	res = []
 	for dataset in datasets
-		dfs = loaddata(dataset, data_path; allsubdatasets = allsubdatasets)
+		dfs = loaddata(dataset, data_path; allsubdatasets = allsubdatasets, data_type = data_type)
 		aggregdfs = []
 		for df in dfs
 			if size(df,1) == 0
 				continue
 			end
 			_df = average_over_folds(df)
-			#if pareto_optimal
-			#	_df = pareto_optimal_params(_df, map(x->Symbol(string(x)*"_mean"), metrics))
-			#end
 			merge_param_cols!(_df)
 			drop_cols!(_df)
 			push!(aggregdfs, _df)
@@ -397,26 +397,93 @@ function compare_measures(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, 
 	return mean_diff, sd_diff, rel_mean_diff, rel_sd_diff	
 end
 
-function collect_rows_model_is_parameter(alldf, metric, metrics)
-	datasets = unique(alldf[!,:dataset])
-	df = DataFrame(:dataset=>String[], :model=>String[], :params=>String[])
+# this seeks for the maximum in val df and returns the coresponding elements from the test df
+function collect_rows_model_is_parameter(alldf_val, alldf_test, metric, metrics)
+	datasets = unique(alldf_val[!,:dataset])
+	res_df = DataFrame(:dataset=>String[], :model=>String[], :params=>String[])
 	for m in metrics
-		df[!,m] = Float64[]
+		res_df[!,m] = Float64[]
 	end
 	for dataset in datasets
-		subdf = alldf[(alldf[!,:dataset].==dataset), :]
+		subdf = alldf_val[(alldf_val[!,:dataset].==dataset), :]
 		x = subdf[!,metric]
 		inds = .!isnan.(x) 
 		#inds = 1:length(x)
 		x = x[inds]
 		if size(x, 1) > 0
 			imax = argmax(x)
-			push!(df, subdf[inds,:][imax, vcat([:dataset, :model, :params], metrics)])
+			subdf = subdf[inds,:]
+			model = subdf[imax,:model]
+			params = subdf[imax,:params]
+			res_row = filter(r->r[:dataset] == dataset && r[:model] == model && r[:params] == params,
+				alldf_test)
+			push!(res_df, Array(res_row[!,vcat([:dataset, :model, :params], metrics)]))
 		else
-			push!(df, vcat([dataset, "", ""], fill(NaN, length(metrics))))
+			push!(res_df, vcat([dataset, "", ""], fill(NaN, length(metrics))))
 		end
 	end
-	return df
+	return res_df
+end
+
+collect_rows_model_is_parameter(alldf, metric, metrics) = 
+	collect_rows_model_is_parameter(alldf, alldf, metric, metrics)
+
+function compute_measure_loss(alldf_val, alldf_test, row_measures, column_measures)
+	# this contains the measure values as selected by the row measures
+	measure_dict_val = Dict(zip(row_measures, 
+		map(x->collect_rows_model_is_parameter(alldf_val,alldf_test,x,column_measures),row_measures)))
+	# these are as if selected by the column measures
+	measure_dict_test = Dict(zip(column_measures, 
+		map(x->collect_rows_model_is_parameter(alldf_val,alldf_test,x,column_measures),column_measures)))
+	
+	# now create a set of tables that represent the mean loss and its variance in measure values 
+	# when maximising by a another measure
+	# first get means by column
+	means_test = Dict(zip(column_measures, 
+			map(y->Statistics.mean(measure_dict_test[y][!,y][.!isnan.(measure_dict_test[y][!,y])]), 
+			column_measures)))
+	
+	mean_diff = DataFrame(:measure=>Symbol[])
+	map(x->mean_diff[!,x] = Float64[], column_measures)
+	sd_diff = deepcopy(mean_diff)
+	for rowm in row_measures
+		mean_row = Array{Any,1}()
+		sd_row = Array{Any,1}()
+		push!(mean_row, rowm)
+		push!(sd_row, rowm)
+		for colm in column_measures
+			x1 = measure_dict_val[rowm][!,colm] # available value = row
+			x2 = measure_dict_test[colm][!,colm] # true maximum = column
+			push!(mean_row, Statistics.mean(stripnans(x2.-x1)))
+			push!(sd_row, Statistics.std(stripnans(x2.-x1)))
+		end
+		push!(mean_diff, mean_row)
+		push!(sd_diff, sd_row)
+	end
+
+	# compute the relative losses
+	rel_mean_diff = deepcopy(mean_diff)
+	map(x->rel_mean_diff[!,x]=rel_mean_diff[!,x]/means_test[x],column_measures)
+	rel_sd_diff = deepcopy(sd_diff)
+	map(x->rel_sd_diff[!,x]=rel_sd_diff[!,x]/means_test[x],column_measures)
+ 
+	return mean_diff, sd_diff, rel_mean_diff, rel_sd_diff	
+end
+
+function compare_eval_test_measures(data_path, row_measures, column_measures;
+		models = ["kNN", "LOF", "IF", "OCSVM"],
+		allsubdatasets = true)
+	# collect all fold averages
+	alldf_val = collect_fold_averages(data_path, row_measures;
+		models = models,
+		allsubdatasets = allsubdatasets,
+		data_type = "validation")
+	alldf_test = collect_fold_averages(data_path, column_measures;
+		models = models,
+		allsubdatasets = allsubdatasets,
+		data_type = "test")
+
+	return compute_measure_loss(alldf_val, alldf_test, row_measures, column_measures)
 end
 
 function compare_measures_model_is_parameter(data_path, metrics = 
@@ -430,55 +497,8 @@ function compare_measures_model_is_parameter(data_path, metrics =
 		#pareto_optimal=pareto_optimal, 
 		models = models,
 		allsubdatasets = allsubdatasets)
-	measure_dict = Dict(zip(metrics, map(x->collect_rows_model_is_parameter(alldf,x,metrics),metrics)))
-	
-	# now create a set of tables that represent the mean loss and its variance in measure values 
-	# when maximising by a another measure
-	means = Dict(zip(metrics, map(x->Statistics.mean(measure_dict[x][!,x][.!isnan.(measure_dict[x][!,x])]), metrics)))
-	mean_diff = DataFrame(:measure=>Symbol[])
-	map(x->mean_diff[!,x] = Float64[], metrics)
-	sd_diff = deepcopy(mean_diff)
-	for metric_row in metrics
-		mean_row = Array{Any,1}()
-		sd_row = Array{Any,1}()
-		push!(mean_row, metric_row)
-		push!(sd_row, metric_row)
-		for metric_column in metrics
-			x1 = measure_dict[metric_row][!,metric_column] # available value = row
-			x2 = measure_dict[metric_column][!,metric_column] # true maximum = column
-			push!(mean_row, Statistics.mean(stripnans(x2.-x1)))
-			push!(sd_row, Statistics.std(stripnans(x2.-x1)))
-		end
-		push!(mean_diff, mean_row)
-		push!(sd_diff, sd_row)
-	end
-	# compute the relative losses
-	rel_mean_diff = deepcopy(mean_diff)
-	map(x->rel_mean_diff[!,x]=rel_mean_diff[!,x]/means[x],metrics)
-	rel_sd_diff = deepcopy(sd_diff)
-	map(x->rel_sd_diff[!,x]=rel_sd_diff[!,x]/means[x],metrics)
- 
-	# histogram plots
-	#nm = length(metrics)
-	#i=0 # i se pridava v radku, postupne se pridavaji radky
-	#for metric_row in metrics
-	#	for metric_column in metrics
-	#		x1 = measure_dict[metric_row][metric_column] # available value = row
-	#		x2 = measure_dict[metric_column][metric_column] # true maximum = column
-	#		i+=1
-	#		ax = subplot(nm,nm,i)
-	#		y = x2-x1
-	#		plt[:hist](y[.!isnan.(y)],50)
-	#		if i>nm*(nm-1)
-	#			xlabel(string(metric_column))
-	#		end
-	#		if (i-1)%nm==0
-	#			ylabel(string(metric_row))
-	#		end
-	#		
-	#	end
-	#end
-	return mean_diff, sd_diff, rel_mean_diff, rel_sd_diff	
+
+	return compute_measure_loss(alldf, alldf, metrics, metrics)
 end
 
 function compare_measures_by_dataset(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, 
@@ -641,13 +661,13 @@ function global_measure_correlation(data_path, measures =
 end
 
 function get_agregdf(data_path, dataset, subclass)
-	dfs = ADMetricEvaluation.loaddata(dataset, data_path)
+	dfs = loaddata(dataset, data_path)
 	filter!(x->x[:dataset][1] == dataset*"-"*subclass, dfs)
 	aggregdfs = []
 	for df in dfs
-		_df = ADMetricEvaluation.average_over_folds(df)
-		ADMetricEvaluation.merge_param_cols!(_df)
-		ADMetricEvaluation.drop_cols!(_df)
+		_df = average_over_folds(df)
+		merge_param_cols!(_df)
+		drop_cols!(_df)
 		push!(aggregdfs, _df)
 	end
 	aggregdf = vcat(aggregdfs...)
