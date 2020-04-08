@@ -105,6 +105,10 @@ function nanargmax(x)
 	_x = x[.!isnan.(x)]
 	length(_x) > 0 ? findfirst(x .== maximum(_x)) : nothing
 end
+function nanargmin(x) 
+	_x = x[.!isnan.(x)]
+	length(_x) > 0 ? findfirst(x .== minimum(_x)) : nothing
+end
 
 remove_appendix!(df, cols, appendix) = 
 	map(c->rename!(df, Symbol(string(c)*"_$appendix") => c), cols)

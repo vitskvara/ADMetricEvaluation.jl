@@ -245,8 +245,7 @@ function collect_rows(alldf, metric, metrics)
 	return df
 end
 
-function collect_fold_averages(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, 
-		:tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1];
+function collect_fold_averages(data_path;
 		#pareto_optimal=false, 
 		models = ["kNN", "LOF", "IF", "OCSVM"],
 		allsubdatasets = true,
@@ -318,7 +317,7 @@ end
 
 function compare_measures_by_dataset_and_model(data_path, measures = [:auc, :auc_weighted, :auc_at_5, :prec_at_5, 
 		:tpr_at_5, :vol_at_5, :auc_at_1, :prec_at_1, :tpr_at_1, :vol_at_1]; allsubdatasets = true)
-	alldf = collect_fold_averages(data_path, measures; allsubdatasets = allsubdatasets)
+	alldf = collect_fold_averages(data_path; allsubdatasets = allsubdatasets)
 	measure_dict = Dict(zip(measures, map(x->collect_rows(alldf,x,measures),measures)))
 	datasets = unique(alldf[:dataset])
 	models = unique(alldf[:model])
@@ -342,7 +341,7 @@ function compare_measures(data_path, metrics = [:auc, :auc_weighted, :auc_at_5, 
 		models = ["kNN", "LOF", "IF", "OCSVM"],
 		allsubdatasets = true)
 	# collect all fold averages
-	alldf = collect_fold_averages(data_path, metrics;
+	alldf = collect_fold_averages(data_path;
 		#pareto_optimal=pareto_optimal, 
 		models = models,
 		allsubdatasets = allsubdatasets)
@@ -472,16 +471,24 @@ end
 
 function compare_eval_test_measures(data_path, row_measures, column_measures;
 		models = ["kNN", "LOF", "IF", "OCSVM"],
-		allsubdatasets = true)
+		allsubdatasets = true,
+		filtered_datasets = nothing)
 	# collect all fold averages
-	alldf_val = collect_fold_averages(data_path, row_measures;
+	alldf_val = collect_fold_averages(data_path;
 		models = models,
 		allsubdatasets = allsubdatasets,
 		data_type = "validation")
-	alldf_test = collect_fold_averages(data_path, column_measures;
+	alldf_test = collect_fold_averages(data_path;
 		models = models,
 		allsubdatasets = allsubdatasets,
 		data_type = "test")
+
+	if filtered_datasets == nothing
+		nothing
+	else
+		alldf_val = filter(r->!(r[:dataset] in filtered_datasets), alldf_val)
+		alldf_val = filter(r->!(r[:dataset] in filtered_datasets), alldf_val)
+	end
 
 	return compute_measure_loss(alldf_val, alldf_test, row_measures, column_measures)
 end
@@ -493,7 +500,7 @@ function compare_measures_model_is_parameter(data_path, metrics =
 		models = ["kNN", "LOF", "IF", "OCSVM"],
 		allsubdatasets = true)
 	# collect all fold averages
-	alldf = collect_fold_averages(data_path, metrics;
+	alldf = collect_fold_averages(data_path;
 		#pareto_optimal=pareto_optimal, 
 		models = models,
 		allsubdatasets = allsubdatasets)
