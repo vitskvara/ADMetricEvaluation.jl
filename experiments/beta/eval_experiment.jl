@@ -7,7 +7,7 @@ ADME = ADMetricEvaluation
 include("../models.jl")
 
 umap_path = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/umap_beta_contaminated-0.00"
-full_path_0 = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_beta_contaminated-0.00"
+full_path_0 = "/home/vit/vyzkum/anomaly_detection/data/metric_evaluation/full_beta_contaminated-0.00_v1"
 
 row_measures = [:auc, :auc_weighted, :auc_at_1, :tpr_at_1, :bauc_at_1, :lauc_at_1,
 		:auc_at_5, :tpr_at_5, :bauc_at_5, :lauc_at_5]
@@ -52,8 +52,11 @@ function filtered_rel_measure_loss(data_path, row_measures, column_measures, tar
 	# we have to throw away some datasets where the results of bauc are either all NANs or they are
 	# mostly nans
 	datasets = unique(alldf_val[!,:dataset])
-	somenan_datasets = filter(x->any(isnan.(filter(r->r[:dataset]==x, alldf_val)[!,target_measure])), 
-		datasets)
+	#somenan_datasets = filter(x->any(isnan.(filter(r->r[:dataset]==x, alldf_val)[!,target_measure])), 
+	#	datasets)
+	# throw away those with more than half NaNs
+	somenan_datasets = 
+		filter(x->sum(isnan.(filter(r->r[:dataset]==x, alldf_val)[!,target_measure])) > length(filter(r->r[:dataset]==x, alldf_val)[!,target_measure])/2, datasets)
 
 	results = ADME.compare_eval_test_measures(data_path, row_measures, column_measures;
 		filtered_datasets = somenan_datasets)
@@ -75,14 +78,14 @@ full_df = results_full_0[3]
 # collect the means over validation and test results
 data_path = full_path_0
 alldf_val = ADME.collect_fold_averages(data_path; data_type = "validation")
-alldf_test = ADME.collect_fold_averages(data_path; data_type = "test")
+alldf_tst = ADME.collect_fold_averages(data_path; data_type = "test")
 
 # now collect the best results
 measure_dict_val = Dict(zip(row_measures, 
-	map(x->ADME.collect_rows_model_is_parameter(alldf_val,alldf_test,x,column_measures),row_measures)))
+	map(x->ADME.collect_rows_model_is_parameter(alldf_val,alldf_tst,x,column_measures),row_measures)))
 # these are as if selected by the column measures
-measure_dict_test = Dict(zip(column_measures, 
-	map(x->ADME.collect_rows_model_is_parameter(alldf_val,alldf_test,x,column_measures),column_measures)))
+measure_dict_tst = Dict(zip(column_measures, 
+	map(x->ADME.collect_rows_model_is_parameter(alldf_val,alldf_tst,x,column_measures),column_measures)))
 
 # we have to throw away some datasets where the results of bauc are either all NANs or they are
 # mostly nans
@@ -100,10 +103,10 @@ alldf_val_filtered = filter(r->!(r[:dataset] in filtered_datasets), alldf_val)
 alldf_tst_filtered = filter(r->!(r[:dataset] in filtered_datasets), alldf_tst)
 
 measure_dict_val_filtered = Dict(zip(row_measures, 
-	map(x->ADME.collect_rows_model_is_parameter(alldf_val_filtered,alldf_test,x,column_measures),row_measures)))
+	map(x->ADME.collect_rows_model_is_parameter(alldf_val_filtered,alldf_tst,x,column_measures),row_measures)))
 # these are as if selected by the column measures
-measure_dict_test_filtered = Dict(zip(column_measures, 
-	map(x->ADME.collect_rows_model_is_parameter(alldf_val_filtered,alldf_test,x,column_measures),column_measures)))
+measure_dict_tst_filtered = Dict(zip(column_measures, 
+	map(x->ADME.collect_rows_model_is_parameter(alldf_val_filtered,alldf_tst,x,column_measures),column_measures)))
 
 
 results_umap_filtered = ADME.compare_eval_test_measures(umap_path, row_measures, column_measures;
@@ -169,6 +172,10 @@ hist(dxf, 100,alpha=0.3, label="bAUC@5")
 hist(dx2f, 30,alpha=0.3, label="AUC@5")
 legend()
 savefig("/home/vit/vyzkum/measure_evaluation/beta/bauc_vs_auc_loss_histograms_filtered.png")
+
+newdf = deepcopy(measure_dict_val_filtered[row_measure])
+newdf[!,:dx] = dxf
+newdf
 
 
 sortis = sortperm(dx)

@@ -16,7 +16,7 @@ param_struct = [
 
 function compute_results(model, X, y, fprs, measuref)	
 	nsamples = 1000
-	throw_errs = true
+	throw_errs = false
 	score_fun(X) = -ScikitLearn.decision_function(model, Array(transpose(X)))
 
 	measures = DataFrame()
@@ -24,7 +24,7 @@ function compute_results(model, X, y, fprs, measuref)
 	scores = try
 		score_fun(X)
 	catch e
-		println(e)
+#		println(e)
 		for fpr in fprs
 			sfpr = "$(round(Int,100*fpr))"
 			measures[!,Symbol("measure_at_$sfpr")] = [NaN]
@@ -108,14 +108,19 @@ function save_results(results, path, model_names, subdataset)
 end
 
 function load_results(path, model_names; subdataset="")
+	ispath(path) ? nothing : (return [])
 	fs = readdir(path)
-	filter!(x->occursin(subdataset,x), fs)
+	if subdataset != ""
+		filter!(x->occursin(subdataset*"_",x), fs)
+	end
 	results = []
 	for model_name in model_names
 		_fs = filter(x->occursin(model_name, x), fs)
-		res_val = CSV.read(joinpath(path, filter(x->occursin("validation", x), _fs)[1]))
-		res_test = CSV.read(joinpath(path, filter(x->occursin("test", x), _fs)[1]))
-		push!(results, (res_val, res_test))
+		if length(_fs) > 0
+			res_val = CSV.read(joinpath(path, filter(x->occursin("validation", x), _fs)[1]))
+			res_test = CSV.read(joinpath(path, filter(x->occursin("test", x), _fs)[1]))
+			push!(results, (res_val, res_test))
+		end
 	end
 	return results
 end
@@ -184,7 +189,7 @@ function compute_means(df, fprs, column_measures)
 	return df
 end
 
-function rel_measure_loss(alldf_val, alldf_tst, row_measures, column_measures, fprs)
+function rel_measure_loss(alldf_val, alldf_tst, row_measures, column_measures, fprs, target_measure, filter_ratio = 0.0)
 	# now collect the best results
 	measure_dict_val = Dict(zip(row_measures, 
 		map(x->ADME.collect_rows_model_is_parameter(alldf_val,alldf_tst,x,column_measures),row_measures)))
@@ -194,16 +199,16 @@ function rel_measure_loss(alldf_val, alldf_tst, row_measures, column_measures, f
 
 	# we have to throw away some datasets where the results of bauc are either all NANs or they are
 	# mostly nans
-#	datasets = unique(alldf_val[!,:dataset])
-#	somenan_datasets = filter(x->any(isnan.(filter(r->r[:dataset]==x, alldf_val)[!,target_measure])), 
-#		datasets)
+	datasets = unique(alldf_val[!,:dataset])
+	filtered_datasets = 
+		filter(x->sum(isnan.(filter(r->r[:dataset]==x, alldf_val)[!,target_measure])) > length(filter(r->r[:dataset]==x, alldf_val)[!,target_measure])*(1-filter_ratio), datasets)
 
-#	if filtered_datasets == nothing
-#		nothing
-#	else
-##		alldf_val = filter(r->!(r[:dataset] in filtered_datasets), alldf_val)
-#		alldf_val = filter(r->!(r[:dataset] in filtered_datasets), alldf_val)
-#	end
+	if length(filtered_datasets) == 0
+		nothing
+	else
+		alldf_val = filter(r->!(r[:dataset] in filtered_datasets), alldf_val)
+		alldf_tst = filter(r->!(r[:dataset] in filtered_datasets), alldf_tst)
+	end
 
 	results = ADME.compute_measure_loss(alldf_val, alldf_tst, row_measures, column_measures)
 
@@ -211,14 +216,6 @@ function rel_measure_loss(alldf_val, alldf_tst, row_measures, column_measures, f
 end
 
 function measure_test_results(dataset, subdataset, measuref, savepath, fprs, orig_path)
-	#path = joinpath(savepath, subdataset)
-	#if isdir(path) && length(readdir(path)) > 0
-	#	results = load_results(path, model_names)
-	#else
-	#	results = test_measure(dataset, subdataset, measuref, fprs, model_list, model_names, param_struct)
-	#	save_results(results, path, model_names, subdataset)	
-	#end
-
 	results = test_measure(dataset, subdataset, measuref, fprs, model_list, model_names, param_struct)
 
 	original_results = load_results(joinpath(orig_path, dataset), model_names; subdataset = subdataset)
@@ -239,7 +236,43 @@ function measure_test_results(dataset, subdataset, measuref, savepath, fprs, ori
 	alldf_tst = collect_fold_averages(dfs_tst)
 
 	fprs100 = map(x->round(Int, x*100), fprs)
-	measure_loss_df = rel_measure_loss(alldf_val, alldf_tst, row_measures, column_measures, fprs100)
+	measure_loss_df = rel_measure_loss(alldf_val, alldf_tst, row_measures, column_measures, fprs100, 
+		:measure_at_5, 0.0)
 
 	return measure_loss_df, alldf_val, alldf_tst, (X_tr, y_tr, X_val, y_val, X_tst, y_tst)
+end
+
+function save_measure_test_results(dataset, subdataset, measuref, savepath, fprs, orig_path)
+	path = joinpath(savepath, subdataset)
+	results = test_measure(dataset, subdataset, measuref, fprs, model_list, model_names, param_struct)
+	save_results(results, path, model_names, subdataset)	
+	return results
+end
+
+function load_and_join(dataset, subdataset, orig_path, new_path)
+	original_results = load_results(joinpath(orig_path, dataset), model_names; subdataset = subdataset)
+	results = load_results(joinpath(new_path, subdataset), model_names)
+
+	n = min(length(results), length(original_results))
+	if n == 0
+		return nothing, nothing
+	end
+	dfs_val = map(x -> join_dfs(x[1][1], x[2][1]), zip(original_results[1:n], results[1:n]))
+	dfs_tst = map(x -> join_dfs(x[1][2], x[2][2]), zip(original_results[1:n], results[1:n]))
+
+	alldf_val = collect_fold_averages(dfs_val)
+	alldf_tst = collect_fold_averages(dfs_tst)
+
+	return alldf_val, alldf_tst
+end
+get_subsets(dataset) = unique(map(x->split(x, "_")[1], readdir(joinpath(orig_path, dataset))))
+
+function get_data(dataset, subdataset, seed)
+	raw_data = UCI.get_data(dataset)
+	multiclass_data = UCI.create_multiclass(raw_data...)
+	data = filter(x->occursin(x[2], subdataset),multiclass_data)[1][1]
+	X_tr, y_tr, X_val_tst, y_val_tst = UCI.split_data(data, 0.6, 0.00;
+		test_contamination = nothing, seed = seed, standardize=true)
+	X_val, y_val, X_tst, y_tst = UCI.split_val_test(X_val_tst, y_val_tst);
+	return X_tr, y_tr, X_val, y_val, X_tst, y_tst
 end

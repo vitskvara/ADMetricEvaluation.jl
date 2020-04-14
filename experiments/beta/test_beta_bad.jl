@@ -9,9 +9,13 @@ row_measures = [:auc, :auc_weighted, :auc_at_1, :tpr_at_1, :bauc_at_1, :lauc_at_
 column_measures = [:auc_at_1, :auc_at_5, :prec_at_1, :prec_at_5,
 		:tpr_at_1, :tpr_at_5]
 
-dataset = "cardiotocography"
-subdataset = "cardiotocography-2-7"
+#dataset = "cardiotocography"
+#subdataset = "cardiotocography-2-7"
 
+dataset = "ecoli"
+subdataset = "ecoli-cp-imL"
+
+measuref = gauss_auc
 measure_loss_df, alldf_val, alldf_tst, data = 
 	measure_test_results(dataset, subdataset, measuref, savepath, fprs, orig_path)
 X_tr, y_tr, X_val, y_val, X_tst, y_tst = data
@@ -36,7 +40,12 @@ alldf_val_alt[!, [:model, :params, :auc,:tpr_at_5, :auc_at_5, :bauc_at_5, :measu
 # │ 39  │ OCSVM  │ gamma=100.0        │ 0.531466 │ 0.0266904 │ 0.758705  │
 # wine-2-3                                            │ OCSVM  │ gamma=5.0
 
-model = OCSVM_model(100.0)
+dataset = "ecoli"
+subdataset = "ecoli-cp-imL"
+seed = 1
+X_tr, y_tr, X_val, y_val, X_tst, y_tst = get_data(dataset, subdataset, seed)
+
+model = OCSVM_model(0.1)
 ScikitLearn.fit!(model, Array(transpose(X_tr)))
 score_fun(X) = -ScikitLearn.decision_function(model, Array(transpose(X)))
 scores = score_fun(X_val)
@@ -45,11 +54,16 @@ fprvec, tprvec = roccurve(scores, y_val)
 figure()
 plot(fprvec, tprvec)
 
+gauss_auc(scores, y_val, fpr, 1000)
+
 fpr = 0.05
 beta_auc(scores, y_val, fpr, 1000)
 
 beta_auc_alt(scores, y_val, fpr, 1000)
 
+svpath = "/home/vit/vyzkum/measure_evaluation/beta_alternatives/beta_auc_alt"
+
+res = save_measure_test_results(dataset, subdataset, measuref, svpath, fprs, orig_path)
 
 function beta_auc_alt(scores::Vector, y_true::Vector, fpr::Real, nsamples::Int; d::Real=0.5, warns=true)
     # first sample fprs and get parameters of the beta distribution
@@ -82,7 +96,26 @@ function beta_auc_alt(scores::Vector, y_true::Vector, fpr::Real, nsamples::Int; 
     wauroc = EvalCurves.auc(roci..., w)
 end
 
+gaussian_pdf(nd::Real,p::Real,n::Int) = 1/(sqrt(2*pi)*sqrt(n*p*(1-p)))*exp(-(nd-n*p)^2/(2*n*p*(1-p)))*n
+function gauss_auc(scores::Vector, y_true::Vector, fpr::Real, nsamples::Int; d::Real=0.5, warns=true)
+    n = length(y_true) - sum(y_true) # number of negative samples
 
+    # compute roc
+    roc = roccurve(scores, y_true)
+    
+    # linearly interpolate it
+    interp_len = max(1001, length(roc[1]))
+    roci = EvalCurves.linear_interpolation(roc..., n=interp_len)
+
+    # weights are given by the beta pdf and are centered on the trapezoids
+    dx = (roci[1][2] - roci[1][1])/2
+    xw = roci[1][1:end-1] .+ dx
+    w = gaussian_pdf.(xw.*n, fpr, n)
+
+    wauroc = auc(roci..., w)
+end
+
+# now we are stuck here
 fprs = EvalCurves.fpr_distribution(scores, y_val, 0.05, 1000, 0.5)
 α, β = EvalCurves.estimate_beta_params(fprs)
 roc = EvalCurves.roccurve(scores, y_val)
@@ -93,6 +126,8 @@ roci = EvalCurves.linear_interpolation(roc..., n=interp_len)
 dx = (roci[1][2] - roci[1][1])/2
 xw = roci[1][1:end-1] .+ dx
 w = exp.(EvalCurves.beta_logpdf.(xw, α, β))
+
+q  = 1/2
 
 figure()
 subplot(121)
@@ -105,3 +140,15 @@ title("fpr distribution and beta fit at FPR=0.05")
 savefig(joinpath(savepath, "bad_fpr_fit.png"))
 
 # we have to come up with a defense against this
+
+auc(xw, w)
+
+plot(xw,w)
+plot(xw,w.^(1/2))
+
+auc(xw,w.^(1/2))
+
+
+dx = (roci[1][2] - roci[1][1])/2
+xw = roci[1][1:end-1] .+ dx
+w = exp.(EvalCurves.beta_logpdf.(xw, α, β))
