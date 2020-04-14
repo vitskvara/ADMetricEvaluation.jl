@@ -1,6 +1,7 @@
 include("test_beta_alternatives_functions.jl")
 
 svpath = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/beta_alternatives/gauss_auc"
+orig_path = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/full_beta_contaminated-0.00"
 fprs = [0.01, 0.05]
 
 gaussian_pdf(nd::Real,p::Real,n::Int) = 1/(sqrt(2*pi)*sqrt(n*p*(1-p)))*exp(-(nd-n*p)^2/(2*n*p*(1-p)))*n
