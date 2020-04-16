@@ -336,6 +336,9 @@ function hist_auc(scores::Vector, y_true::Vector, fpr::Real, nsamples::Int; d::R
     wauroc = auc(roc..., w)
 end
 
+
+sample(gmm::GMM) = (n=StatsBase.sample(1:gmm.n, Weights(gmm.w)); randn()*sqrt(gmm.Σ[n])+gmm.μ[n])
+sample(gmm::GMM, N::Int) = [sample(gmm) for _ in 1:N]
 function gmm_fit(scores::Vector, y_true::Vector, ncomponents::Int)
     gmm0 = try
         @suppress begin
