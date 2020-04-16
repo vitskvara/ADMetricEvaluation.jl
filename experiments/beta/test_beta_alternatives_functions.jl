@@ -276,3 +276,60 @@ function get_data(dataset, subdataset, seed)
 	X_val, y_val, X_tst, y_tst = UCI.split_val_test(X_val_tst, y_val_tst);
 	return X_tr, y_tr, X_val, y_val, X_tst, y_tst
 end
+
+gaussian_pdf(nd::Real,p::Real,n::Int) = 1/(sqrt(2*pi)*sqrt(n*p*(1-p)))*exp(-(nd-n*p)^2/(2*n*p*(1-p)))*n
+function gauss_auc(scores::Vector, y_true::Vector, fpr::Real, nsamples::Int; d::Real=0.5, warns=true)
+    n = length(y_true) - sum(y_true) # number of negative samples
+
+    # compute roc
+    roc = roccurve(scores, y_true)
+    
+    # linearly interpolate it
+    interp_len = max(1001, length(roc[1]))
+    roci = EvalCurves.linear_interpolation(roc..., n=interp_len)
+
+    # weights are given by the beta pdf and are centered on the trapezoids
+    dx = (roci[1][2] - roci[1][1])/2
+    xw = roci[1][1:end-1] .+ dx
+    w = gaussian_pdf.(xw.*n, fpr, n)
+
+    wauroc = auc(roci..., w)
+end
+
+function empirical_histogram_weights(x::Vector, samples::Vector, rounding=8)
+    # do some rounding to ensure equalities
+    x = round.(x, digits=rounding)
+    dxs = round.(x[2:end].-x[1:end-1], digits=rounding)
+    samples = round.(samples, digits = rounding)
+
+    N = length(dxs)
+    w = zeros(N)
+    for i in 1:N
+        if dxs[i] != 0
+            w[i] = sum(x[i] .<= samples .< x[i+1])/length(samples)/dxs[i]
+        end
+    end
+    return w
+end
+function hist_auc(scores::Vector, y_true::Vector, fpr::Real, nsamples::Int; d::Real=0.5, warns=true)
+    # first sample fprs and get parameters of the beta distribution
+    fprs = fpr_distribution(scores, y_true, fpr, nsamples, d, warns=warns)
+    # filter out NaNs
+    fprs = fprs[.!isnan.(fprs)]
+    (length(fprs) == 0) ? (return NaN) : nothing
+
+    # check for consistency
+    if !_check_sampled_fpr_consistency(fpr, fprs)
+        warns ? (@warn "the requested fpr is out of the sampled fpr distribution, returning NaN") : nothing
+        return NaN
+    end
+
+    # compute roc
+    roc = roccurve(scores, y_true)
+    
+    # compute the histogram weights
+    w = empirical_histogram_weights(roc[1], fprs)
+
+    # compute the integral
+    wauroc = auc(roc..., w)
+end

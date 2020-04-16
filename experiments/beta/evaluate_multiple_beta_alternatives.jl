@@ -29,7 +29,12 @@ measure_loss_df = rel_measure_loss(alldf_val, alldf_tst, row_measures, column_me
 showall(alldf_val[!,[:dataset, :params, :tpr_at_5, :auc_at_5, :bauc_at_5, :measure_at_5]])
 
 
-measure_loss_df_old = deepcopy(measure_loss_df)
+measure_loss_df_gauss = deepcopy(measure_loss_df)
+measure_loss_df_gauss[7,:measure] = :gauss_auc_at_1
+measure_loss_df_gauss[12,:measure] = :gauss_auc_at_5
+
+measure_loss_df_gauss
+
 # find the best/worst cases in the new measure
 target_measure = :measure_at_5
 datasets = unique(alldf_val[!,:dataset])
