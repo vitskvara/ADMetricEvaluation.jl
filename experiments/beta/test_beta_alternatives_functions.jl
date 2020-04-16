@@ -313,13 +313,13 @@ function empirical_histogram_weights(x::Vector, samples::Vector, rounding=8)
 end
 function hist_auc(scores::Vector, y_true::Vector, fpr::Real, nsamples::Int; d::Real=0.5, warns=true)
     # first sample fprs and get parameters of the beta distribution
-    fprs = fpr_distribution(scores, y_true, fpr, nsamples, d, warns=warns)
+    fprs = EvalCurves.fpr_distribution(scores, y_true, fpr, nsamples, d, warns=warns)
     # filter out NaNs
     fprs = fprs[.!isnan.(fprs)]
     (length(fprs) == 0) ? (return NaN) : nothing
 
     # check for consistency
-    if !_check_sampled_fpr_consistency(fpr, fprs)
+    if !EvalCurves._check_sampled_fpr_consistency(fpr, fprs)
         warns ? (@warn "the requested fpr is out of the sampled fpr distribution, returning NaN") : nothing
         return NaN
     end
