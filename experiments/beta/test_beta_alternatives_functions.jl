@@ -2,6 +2,8 @@ using ADMetricEvaluation
 ADME = ADMetricEvaluation
 using EvalCurves, DataFrames, Statistics, CSV, PyPlot, UCI
 using EvalCurves: beta_auc, localized_auc, f1_at_fpr
+using GaussianMixtures, Suppressor
+
 include("../models.jl")
 savepath = "/home/vit/vyzkum/measure_evaluation/beta_alternatives"
 
@@ -332,4 +334,40 @@ function hist_auc(scores::Vector, y_true::Vector, fpr::Real, nsamples::Int; d::R
 
     # compute the integral
     wauroc = auc(roc..., w)
+end
+
+function gmm_fit(scores::Vector, y_true::Vector, ncomponents::Int)
+    gmm0 = try
+        @suppress begin
+            GMM(ncomponents, scores[y_true.==0])
+        end
+    catch e    
+        @warn(e)
+        nothing
+    end
+    gmm1 = try
+        @suppress begin
+            GMM(ncomponents, scores[y_true.==1])
+        end
+    catch e    
+        @warn(e)
+        nothing
+    end
+    return gmm0, gmm1
+end
+function tpr_at_fpr_gmm(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int; 
+        min_samples::Int=1000, nc::Int=3, warns = true)
+    # fit the gmms
+    gmm0, gmm1 = gmm_fit(scores, y_true, nc);
+    if (gmm0 == nothing) || (gmm1 == nothing)
+        return NaN
+    end
+    
+    # sample scores
+    N = max(min_samples, length(scores))
+    
+    # get rocs and the respective tpr values
+    ts = map(_->EvalCurves.tpr_at_fpr(roccurve(vcat(sample(gmm0, N), sample(gmm1, N)), 
+                vcat(zeros(N), ones(N)))..., fpr), 1:nrepeats)
+    mean(ts)
 end
