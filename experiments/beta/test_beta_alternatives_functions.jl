@@ -16,8 +16,7 @@ param_struct = [
                 ([[50 100 200]], [:num_estimators]),
              ]
 
-function compute_results(model, X, y, fprs, measuref)	
-	nsamples = 1000
+function compute_results(model, X, y, fprs, measuref; nsamples=1000)	
 	throw_errs = false
 	score_fun(X) = -ScikitLearn.decision_function(model, Array(transpose(X)))
 
@@ -45,7 +44,7 @@ function compute_results(model, X, y, fprs, measuref)
 	return measures
 end
 
-function one_model_results(model, parameters, param_names, data, measuref)
+function one_model_results(model, parameters, param_names, data, measuref; kwargs...)
 	p = 0.6
 	contamination = 0.0
 	standardize = true
@@ -63,8 +62,8 @@ function one_model_results(model, parameters, param_names, data, measuref)
 		ScikitLearn.fit!(m, Array(transpose(X_tr)))
 
 		# compute eval and test scores
-		measures_val = compute_results(m, X_val, y_val, fprs, measuref)
-		measures_tst = compute_results(m, X_tst, y_tst, fprs, measuref)
+		measures_val = compute_results(m, X_val, y_val, fprs, measuref; kwargs...)
+		measures_tst = compute_results(m, X_tst, y_tst, fprs, measuref; kwargs...)
 
 		for (par_name, par_val) in zip(param_names, parameters)
 			insertcols!(measures_val, 1, par_name=>par_val) 
@@ -79,7 +78,7 @@ function one_model_results(model, parameters, param_names, data, measuref)
 	return vcat(results_val...), vcat(results_tst...)
 end
 
-function test_measure(dataset, subdataset, measuref, fprs, model_list, model_names, param_struct)
+function test_measure(dataset, subdataset, measuref, fprs, model_list, model_names, param_struct; kwargs...)
 	data_path = "" # UCI.get_processed_datapath()
 	
 	raw_data = UCI.get_data(dataset, path=data_path)
@@ -91,7 +90,7 @@ function test_measure(dataset, subdataset, measuref, fprs, model_list, model_nam
 		param_vals = params[1]
 		param_names = params[2]
 	    res_val, res_tst = 
-	    	ADME.gridsearch(x -> one_model_results(model, x, param_names, data, measuref), param_vals...)
+	    	ADME.gridsearch(x -> one_model_results(model, x, param_names, data, measuref; kwargs...), param_vals...)
 	    insertcols!(res_val, 1, :model=>model_name)
 	    insertcols!(res_val, 1, :dataset=>subdataset)
 	    insertcols!(res_tst, 1, :model=>model_name)
@@ -217,8 +216,8 @@ function rel_measure_loss(alldf_val, alldf_tst, row_measures, column_measures, f
 	return compute_means(results[3], fprs, column_measures)
 end
 
-function measure_test_results(dataset, subdataset, measuref, savepath, fprs, orig_path)
-	results = test_measure(dataset, subdataset, measuref, fprs, model_list, model_names, param_struct)
+function measure_test_results(dataset, subdataset, measuref, savepath, fprs, orig_path; kwargs...)
+	results = test_measure(dataset, subdataset, measuref, fprs, model_list, model_names, param_struct; kwargs...)
 
 	original_results = load_results(joinpath(orig_path, dataset), model_names; subdataset = subdataset)
 
@@ -244,9 +243,9 @@ function measure_test_results(dataset, subdataset, measuref, savepath, fprs, ori
 	return measure_loss_df, alldf_val, alldf_tst, (X_tr, y_tr, X_val, y_val, X_tst, y_tst)
 end
 
-function save_measure_test_results(dataset, subdataset, measuref, savepath, fprs, orig_path)
+function save_measure_test_results(dataset, subdataset, measuref, savepath, fprs, orig_path; kwargs...)
 	path = joinpath(savepath, subdataset)
-	results = test_measure(dataset, subdataset, measuref, fprs, model_list, model_names, param_struct)
+	results = test_measure(dataset, subdataset, measuref, fprs, model_list, model_names, param_struct; kwargs...)
 	save_results(results, path, model_names, subdataset)	
 	return results
 end
