@@ -338,27 +338,31 @@ end
 
 sample(gmm::GMM) = (n=StatsBase.sample(1:gmm.n, Weights(gmm.w)); randn()*sqrt(gmm.Σ[n])+gmm.μ[n])
 sample(gmm::GMM, N::Int) = [sample(gmm) for _ in 1:N]
-function gmm_fit(scores::Vector, y_true::Vector, ncomponents::Int)
-    gmm0 = try
-        @suppress begin
-            GMM(ncomponents, scores[y_true.==0])
+function gmm_fit(scores::Vector, max_components::Int; verb=false, kwargs...)
+    # basically, try fitting gmms from max components down to 1
+    for nc in max_components:-1:1
+        gmm = try
+            if !verb
+                @suppress begin
+                    GMM(nc, scores; kwargs...)
+                end
+            else
+                GMM(nc, scores; kwargs...)
+            end
+        catch e    
+            @warn(e)
+            nothing
         end
-    catch e    
-        @warn(e)
-        nothing
+        (gmm != nothing) ? (return gmm) : nothing
     end
-    gmm1 = try
-        @suppress begin
-            GMM(ncomponents, scores[y_true.==1])
-        end
-    catch e    
-        @warn(e)
-        nothing
-    end
+end
+function gmm_fit(scores::Vector, y_true::Vector, max_components::Int; verb=false, kwargs...)
+    gmm0 = gmm_fit(scores[y_true.==0], max_components, verb=verb, kwargs...)
+    gmm1 = gmm_fit(scores[y_true.==1], max_components, verb=verb, kwargs...)
     return gmm0, gmm1
 end
 function tpr_at_fpr_gmm(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int; 
-        min_samples::Int=1000, nc::Int=3, warns = true)
+        min_samples::Int=1000, nc::Int=5, warns = true)
     # fit the gmms
     gmm0, gmm1 = gmm_fit(scores, y_true, nc);
     if (gmm0 == nothing) || (gmm1 == nothing)
