@@ -142,14 +142,14 @@ function join_dfs(df1, df2)
 end
 
 # now compute the measure losses
-function collect_fold_averages(dfs)
+function collect_data(dfs; average_over_folds=true)
 	# get the list of datasets in the master path
 	aggregdfs = []
 	for df in dfs
 		if size(df,1) == 0
 			continue
 		end
-		_df = ADME.average_over_folds(df)
+		_df = average_over_folds ? ADME.average_over_folds(df) : deepcopy(df)
 		ADME.merge_param_cols!(_df)
 		ADME.drop_cols!(_df)
 		push!(aggregdfs, _df)
@@ -158,10 +158,14 @@ function collect_fold_averages(dfs)
 	# filter out some models
 	join_und(x,y) = x*"_"*y
 	# remove the _mean suffix from the dataset
-	for name in names(alldf)
-		ss = split(string(name), "_")
-		new_name = (length(ss)==1) ? Symbol(ss[1]) : Symbol(reduce(join_und,ss[1:end-1]))
-		rename!(alldf, name => new_name	)
+	if average_over_folds
+		for name in names(alldf)
+			ss = split(string(name), "_")
+			new_name = (length(ss)==1) ? Symbol(ss[1]) : Symbol(reduce(join_und,ss[1:end-1]))
+			rename!(alldf, name => new_name	)
+		end
+	else
+		alldf[!,:dataset] = alldf[!,:dataset] .* "-fold-" .* string.(alldf[!,:iteration]  )
 	end
 	return alldf
 end
@@ -190,7 +194,8 @@ function compute_means(df, fprs, column_measures)
 	return df
 end
 
-function rel_measure_loss(alldf_val, alldf_tst, row_measures, column_measures, fprs, target_measure, filter_ratio = 0.0)
+function rel_measure_loss(alldf_val, alldf_tst, row_measures, column_measures, fprs, target_measure, 
+	filter_ratio = 0.0; means = true)
 	# now collect the best results
 	measure_dict_val = Dict(zip(row_measures, 
 		map(x->ADME.collect_rows_model_is_parameter(alldf_val,alldf_tst,x,column_measures),row_measures)))
@@ -213,7 +218,11 @@ function rel_measure_loss(alldf_val, alldf_tst, row_measures, column_measures, f
 
 	results = ADME.compute_measure_loss(alldf_val, alldf_tst, row_measures, column_measures)
 
-	return compute_means(results[3], fprs, column_measures)
+	if means
+		return compute_means(results[3], fprs, column_measures)
+	else
+		return results[3]
+	end
 end
 
 function measure_test_results(dataset, subdataset, measuref, savepath, fprs, orig_path; kwargs...)
@@ -233,8 +242,8 @@ function measure_test_results(dataset, subdataset, measuref, savepath, fprs, ori
 		test_contamination = nothing, seed = seed, standardize=true)
 	X_val, y_val, X_tst, y_tst = UCI.split_val_test(X_val_tst, y_val_tst);
 
-	alldf_val = collect_fold_averages(dfs_val)
-	alldf_tst = collect_fold_averages(dfs_tst)
+	alldf_val = collect_data(dfs_val)
+	alldf_tst = collect_data(dfs_tst)
 
 	fprs100 = map(x->round(Int, x*100), fprs)
 	measure_loss_df = rel_measure_loss(alldf_val, alldf_tst, row_measures, column_measures, fprs100, 
@@ -250,7 +259,7 @@ function save_measure_test_results(dataset, subdataset, measuref, savepath, fprs
 	return results
 end
 
-function load_and_join(dataset, subdataset, orig_path, new_path)
+function load_and_join(dataset, subdataset, orig_path, new_path; average_over_folds = true)
 	original_results = load_results(joinpath(orig_path, dataset), model_names; subdataset = subdataset)
 	results = load_results(joinpath(new_path, subdataset), model_names)
 
@@ -261,8 +270,8 @@ function load_and_join(dataset, subdataset, orig_path, new_path)
 	dfs_val = map(x -> join_dfs(x[1][1], x[2][1]), zip(original_results[1:n], results[1:n]))
 	dfs_tst = map(x -> join_dfs(x[1][2], x[2][2]), zip(original_results[1:n], results[1:n]))
 
-	alldf_val = collect_fold_averages(dfs_val)
-	alldf_tst = collect_fold_averages(dfs_tst)
+	alldf_val = collect_data(dfs_val; average_over_folds = average_over_folds)
+	alldf_tst = collect_data(dfs_tst; average_over_folds = average_over_folds)
 
 	return alldf_val, alldf_tst
 end
@@ -376,4 +385,41 @@ function tpr_at_fpr_gmm(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int
     ts = map(_->EvalCurves.tpr_at_fpr(roccurve(vcat(sample(gmm0, N), sample(gmm1, N)), 
                 vcat(zeros(N), ones(N)))..., fpr), 1:nrepeats)
     mean(ts)
+end
+
+function auc_at_fpr_gmm(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int; 
+        min_samples::Int=1000, nc::Int=3, warns = true)
+    # fit the gmms
+    gmm0, gmm1 = gmm_fit(scores, y_true, nc);
+    if (gmm0 == nothing) || (gmm1 == nothing)
+        return NaN
+    end
+    
+    # sample scores
+    N = max(min_samples, length(scores))
+    
+    # get rocs and the respective pauc values
+    paucs = map(_->EvalCurves.auc_at_p(roccurve(vcat(sample(gmm0, N), sample(gmm1, N)), 
+                vcat(zeros(N), ones(N)))..., fpr; normalize=true), 1:nrepeats)
+    mean(paucs)
+end
+
+# bootstrapping
+bootstrap_sample_inds(N::Int) = StatsBase.sample(1:N, N)
+function tpr_at_fpr_bootstrap(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int)
+    # get the indices
+    inds = map(_->bootstrap_sample_inds(length(y_true)), 1:nrepeats)
+    
+    # get rocs and the respective tpr values
+    ts = map(x->EvalCurves.tpr_at_fpr(roccurve(scores[x], y_true[x])..., fpr), inds)
+    mean(ts)
+end
+
+function auc_at_fpr_bootstrap(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int)
+    # sample bootstrap indices
+    inds = map(_->bootstrap_sample_inds(length(y_true)), 1:nrepeats)
+    
+    # get rocs and the respective pauc values
+    aucs = map(x->EvalCurves.auc_at_p(roccurve(scores[x], y_true[x])..., fpr; normalize=true), inds)
+    mean(aucs)
 end
