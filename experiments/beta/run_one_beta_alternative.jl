@@ -1,6 +1,6 @@
 include("test_beta_alternatives_functions.jl")
 
-svpath = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/beta_alternatives/bs_auc"
+svpath = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/beta_alternatives/gmm_auc"
 orig_path = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/full_beta_contaminated-0.00"
 fprs = [0.01, 0.02, 0.05, 0.1]
 
