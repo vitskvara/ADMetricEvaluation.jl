@@ -408,7 +408,7 @@ end
 
 # bootstrapping
 bootstrap_sample_inds(N::Int) = StatsBase.sample(1:N, N)
-function tpr_at_fpr_bootstrap(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int)
+function tpr_at_fpr_bootstrap(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int; warns=false)
     # get the indices
     inds = map(_->bootstrap_sample_inds(length(y_true)), 1:nrepeats)
     
@@ -417,7 +417,7 @@ function tpr_at_fpr_bootstrap(scores::Vector, y_true::Vector, fpr::Real, nrepeat
     mean(ts)
 end
 
-function auc_at_fpr_bootstrap(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int)
+function auc_at_fpr_bootstrap(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int; warns=false)
     # sample bootstrap indices
     inds = map(_->bootstrap_sample_inds(length(y_true)), 1:nrepeats)
     
