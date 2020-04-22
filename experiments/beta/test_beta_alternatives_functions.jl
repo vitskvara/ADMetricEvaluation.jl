@@ -18,7 +18,6 @@ param_struct = [
              ]
 
 function compute_results(model, X, y, fprs, measuref; nsamples=1000, throw_errs = false)	
-	throw_errs = false
 	score_fun(X) = -ScikitLearn.decision_function(model, Array(transpose(X)))
 
 	measures = DataFrame()
