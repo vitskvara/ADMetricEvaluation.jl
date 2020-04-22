@@ -17,7 +17,7 @@ param_struct = [
                 ([[50 100 200]], [:num_estimators]),
              ]
 
-function compute_results(model, X, y, fprs, measuref; nsamples=1000)	
+function compute_results(model, X, y, fprs, measuref; nsamples=1000, throw_errs = false)	
 	throw_errs = false
 	score_fun(X) = -ScikitLearn.decision_function(model, Array(transpose(X)))
 
@@ -26,10 +26,12 @@ function compute_results(model, X, y, fprs, measuref; nsamples=1000)
 	scores = try
 		score_fun(X)
 	catch e
-#		println(e)
 		for fpr in fprs
 			sfpr = "$(round(Int,100*fpr))"
 			measures[!,Symbol("measure_at_$sfpr")] = [NaN]
+		end
+		if throw_errs
+			rethrow(e)
 		end
 		return measures
 	end	
