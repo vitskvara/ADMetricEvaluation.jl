@@ -1,10 +1,10 @@
 include("test_beta_alternatives_functions.jl")
 
-svpath = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/beta_alternatives/gmm_auc"
+svpath = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/beta_alternatives/np_score"
 orig_path = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/full_beta_contaminated-0.00"
 fprs = [0.01, 0.02, 0.05, 0.1]
 
-measuref = auc_at_fpr_gmm
+measuref = np_score
 dataset = ARGS[1]
 subsets = get_subsets(dataset)
 for subdataset in subsets

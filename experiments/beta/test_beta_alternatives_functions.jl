@@ -349,6 +349,9 @@ end
 
 sample(gmm::GMM) = (n=StatsBase.sample(1:gmm.n, Weights(gmm.w)); randn()*sqrt(gmm.Σ[n])+gmm.μ[n])
 sample(gmm::GMM, N::Int) = [sample(gmm) for _ in 1:N]
+normal_density(x::Real, μ::Real, σ::Real) = 1/(σ*sqrt(2*pi))*exp(-1/2*(x-μ)^2/σ^2)
+pdf(gmm::GMM, x::Vector) = reduce(+,map(i->normal_density.(x, gmm.μ[i], sqrt(gmm.Σ[i])), 1:gmm.n).*gmm.w)
+pdf(gmm::GMM, x::Real) = pdf(gmm, [x])[1]
 function gmm_fit(scores::Vector, max_components::Int; verb=false, kwargs...)
     # basically, try fitting gmms from max components down to 1
     for nc in max_components:-1:1
@@ -424,4 +427,18 @@ function auc_at_fpr_bootstrap(scores::Vector, y_true::Vector, fpr::Real, nrepeat
     # get rocs and the respective pauc values
     aucs = map(x->EvalCurves.auc_at_p(roccurve(scores[x], y_true[x])..., fpr; normalize=true), inds)
     mean(aucs)
+end
+
+# NP score
+function np_score(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int; warns=false)
+    fprs = map(x->EvalCurves.fpr_at_threshold(scores, y_true, x), scores);
+    sorti = sortperm(fprs)
+    i = findlast(fprs[sorti].<=fpr)
+    threshold = scores[sorti][i]
+    y_pred = EvalCurves.predict_labels(scores,threshold)
+    fpr = EvalCurves.false_positive_rate(y_true, y_pred)
+    fnr = EvalCurves.false_negative_rate(y_true, y_pred)
+	# there has to be a minus sign since the best classifier minimizes the np score
+	#  which is in constrast to the rest of the scores which are maximized
+    -EvalCurves.np_score(fpr, fnr, α)
 end
