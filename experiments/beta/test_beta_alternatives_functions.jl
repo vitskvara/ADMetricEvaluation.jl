@@ -436,9 +436,10 @@ function np_score(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int; warn
     i = findlast(fprs[sorti].<=fpr)
     threshold = scores[sorti][i]
     y_pred = EvalCurves.predict_labels(scores,threshold)
-    fpr = EvalCurves.false_positive_rate(y_true, y_pred)
-    fnr = EvalCurves.false_negative_rate(y_true, y_pred)
-	# there has to be a minus sign since the best classifier minimizes the np score
+    # there has to be a minus sign since the best classifier minimizes the np score
 	#  which is in constrast to the rest of the scores which are maximized
-    -EvalCurves.np_score(fpr, fnr, α)
+    -EvalCurves.np_score(
+        EvalCurves.false_positive_rate(y_true, y_pred), 
+        EvalCurves.false_negative_rate(y_true, y_pred), 
+        fpr)
 end
