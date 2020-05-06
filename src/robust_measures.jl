@@ -43,5 +43,137 @@ measure_mean(rocs::Vector, measure::Function) = mean(map(r->measure(r...), rocs)
 
 # GMM component selection criterions
 # this tends to select 1 component
+"""
+	BIC(gmm::GMM, x::Vector)
+
+Bayesian information criterion for selecting the optimal number of components of GMM.
+"""
 BIC(gmm::GMM, x::Vector) = log(length(x))*2*gmm.n - sum(log.(pdf(gmm, x)))
+
+"""
+	max_n(gmm::GMM, x::Vector)
+
+Selects the model with alrgest number of components.
+"""
 max_n(gmm::GMM, x::Vector) = -gmm.n
+
+"""
+	normal_density(x::Real, μ::Real, σ::Real)
+
+Density of a normal distribution.
+"""
+normal_density(x::Real, μ::Real, σ::Real) = 1/(σ*sqrt(2*pi))*exp(-1/2*(x-μ)^2/σ^2)
+
+"""
+	pdf(gmm::GMM, x)
+
+The pdf of a GMM model.
+"""
+pdf(gmm::GMM, x::Vector) = reduce(+,map(i->normal_density.(x, gmm.μ[i], sqrt(gmm.Σ[i])), 1:gmm.n).*gmm.w)
+pdf(gmm::GMM, x::Real) = pdf(gmm, [x])[1]
+
+"""
+	gmm_fit(scores::Vector, max_components::Int; verb=false, kwargs...)
+
+Fits a 1-D data vector with a GMM model. Starts with `max_components` and progresses down from this if 
+the fit fails.
+"""
+function gmm_fit(scores::Vector, max_components::Int; verb=false, kwargs...)
+    # basically, try fitting gmms from max components down to 1
+    for nc in max_components:-1:1
+        gmm = try
+            if !verb
+                @suppress begin
+                    GMM(nc, scores; kwargs...)
+                end
+            else
+                GMM(nc, scores; kwargs...)
+            end
+        catch e    
+            @warn(e)
+            nothing
+        end
+        (gmm != nothing) ? (return gmm) : nothing
+    end
+end
+function gmm_fit(scores::Vector, y_true::Vector, max_components::Int; verb=false, kwargs...)
+    gmm0 = gmm_fit(scores[y_true.==0], max_components, verb=verb, kwargs...)
+    gmm1 = gmm_fit(scores[y_true.==1], max_components, verb=verb, kwargs...)
+    return gmm0, gmm1
+end
+
+"""
+	tpr_at_fpr_gmm(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int; 
+        min_samples::Int=1000, nc::Int=5, warns = true)
+
+GMM version of tpr@fpr.
+"""
+function tpr_at_fpr_gmm(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int; 
+        min_samples::Int=1000, nc::Int=5, warns = true)
+    # fit the gmms
+    gmm0, gmm1 = gmm_fit(scores, y_true, nc);
+    if (gmm0 == nothing) || (gmm1 == nothing)
+        return NaN
+    end
+    
+    # sample scores
+    N = max(min_samples, length(scores))
+    
+    # get rocs and the respective tpr values
+    ts = map(_->EvalCurves.tpr_at_fpr(roccurve(vcat(sample(gmm0, N), sample(gmm1, N)), 
+                vcat(zeros(N), ones(N)))..., fpr), 1:nrepeats)
+    mean(ts)
+end
+
+"""
+	auc_at_fpr_gmm(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int; 
+        min_samples::Int=1000, nc::Int=3, warns = true)
+
+GMM version of AUC@fpr.
+"""
+function auc_at_fpr_gmm(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int; 
+        min_samples::Int=1000, nc::Int=3, warns = true)
+    # fit the gmms
+    gmm0, gmm1 = gmm_fit(scores, y_true, nc);
+    if (gmm0 == nothing) || (gmm1 == nothing)
+        return NaN
+    end
+    
+    # sample scores
+    N = max(min_samples, length(scores))
+    
+    # get rocs and the respective pauc values
+    paucs = map(_->EvalCurves.auc_at_p(roccurve(vcat(sample(gmm0, N), sample(gmm1, N)), 
+                vcat(zeros(N), ones(N)))..., fpr; normalize=true), 1:nrepeats)
+    mean(paucs)
+end
+
+# bootstrapping
+bootstrap_sample_inds(N::Int) = StatsBase.sample(1:N, N)
+"""
+	tpr_at_fpr_bootstrap(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int; warns=false)
+
+Bootstrap version of tpr@fpr.
+"""
+function tpr_at_fpr_bootstrap(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int; warns=false)
+    # get the indices
+    inds = map(_->bootstrap_sample_inds(length(y_true)), 1:nrepeats)
+    
+    # get rocs and the respective tpr values
+    ts = map(x->EvalCurves.tpr_at_fpr(roccurve(scores[x], y_true[x])..., fpr), inds)
+    mean(ts)
+end
+
+"""
+	auc_at_fpr_bootstrap(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int; warns=false)
+
+Bootstrap version of AUC@fpr.
+"""
+function auc_at_fpr_bootstrap(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int; warns=false)
+    # sample bootstrap indices
+    inds = map(_->bootstrap_sample_inds(length(y_true)), 1:nrepeats)
+    
+    # get rocs and the respective pauc values
+    aucs = map(x->EvalCurves.auc_at_p(roccurve(scores[x], y_true[x])..., fpr; normalize=true), inds)
+    mean(aucs)
+end

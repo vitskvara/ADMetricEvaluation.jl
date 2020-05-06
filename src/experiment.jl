@@ -1,4 +1,4 @@
-using EvalCurves: f1_at_fpr, beta_auc, localized_auc
+using EvalCurves: f1_at_fpr
 
 """
 	precision_at_p(score_fun, X, y, p::Real; seed = nothing)

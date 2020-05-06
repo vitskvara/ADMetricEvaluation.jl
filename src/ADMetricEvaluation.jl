@@ -20,6 +20,7 @@ using LinearAlgebra
 using GaussianMixtures
 using Suppressor
 using Distributions
+using SpecialFunctions
 
 const Float = Float32
 
@@ -29,5 +30,6 @@ include("eval.jl")
 include("plots.jl")
 include("robust_measures.jl")
 include("discriminability.jl")
+include("integral_measures.jl")
 
 end # module
