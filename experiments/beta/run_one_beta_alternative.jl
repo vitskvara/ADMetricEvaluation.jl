@@ -4,7 +4,7 @@ svpath = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/beta_alt
 orig_path = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/full_beta_contaminated-0.00"
 fprs = collect(range(0.01,0.1, length=10))
 
-measuref = beta_auc
+measuref = hist_auc
 dataset = ARGS[1]
 subsets = get_subsets(dataset)
 for subdataset in subsets

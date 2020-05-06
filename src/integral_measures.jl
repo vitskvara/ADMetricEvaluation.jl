@@ -229,7 +229,7 @@ function hist_auc(scores::Vector, y_true::Vector, fpr::Real, nsamples::Int; d::R
     (length(fprs) == 0) ? (return NaN) : nothing
 
     # check for consistency
-    if !EvalCurves._check_sampled_fpr_consistency(fpr, fprs; nsigma=2)
+    if !_check_sampled_fpr_consistency(fpr, fprs; nsigma=2)
         warns ? (@warn "the requested fpr is out of the sampled fpr distribution, returning NaN") : nothing
         return NaN
     end
