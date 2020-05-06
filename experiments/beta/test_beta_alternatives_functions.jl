@@ -1,7 +1,7 @@
 using ADMetricEvaluation
 ADME = ADMetricEvaluation
 using EvalCurves, DataFrames, Statistics, CSV, PyPlot, UCI
-using EvalCurves: beta_auc, localized_auc, f1_at_fpr
+using EvalCurves: f1_at_fpr
 using GaussianMixtures, Suppressor
 import StatsBase: sample
 
