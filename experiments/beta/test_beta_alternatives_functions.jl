@@ -289,7 +289,7 @@ function get_data(dataset, subdataset, seed)
 	return X_tr, y_tr, X_val, y_val, X_tst, y_tst
 end
 
-import ADME: beta_auc, localized_auc, hist_auc, auc_at_fpr_gmm, tpr_at_fpr_gmm, 
+import ADMetricEvaluation: beta_auc, localized_auc, hist_auc, auc_at_fpr_gmm, tpr_at_fpr_gmm, 
 	auc_at_fpr_bootstrap, tpr_at_fpr_bootstrap
 
 gauss_auc(scores::Vector, y_true::Vector, fpr::Real, nsamples::Int; d::Real=0.5, warns=true) = 
