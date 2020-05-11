@@ -1,10 +1,10 @@
 include("test_beta_alternatives_functions.jl")
 
-svpath = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/beta_alternatives/hist_auc_v2"
+svpath = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/beta_alternatives/localized_auc_v2"
 orig_path = "/compass/home/skvara/anomaly_detection/data/metric_evaluation/full_beta_contaminated-0.00"
 fprs = collect(range(0.01,0.1, length=10))
 
-measuref = hist_auc
+measuref = localized_auc
 dataset = ARGS[1]
 subsets = get_subsets(dataset)
 for subdataset in subsets

@@ -40,7 +40,7 @@ probability of belonginig to the positive class
 
 """
 function localized_auc(scores::Vector, y_true::Vector, fpr::Real, nsamples::Int; d::Real=0.5, 
-    normalize=false, warns=true)
+    normalize = true, warns=true)
     # first sample fprs and get parameters of the beta distribution
     fprs = fpr_distribution(scores, y_true, fpr, nsamples, d, warns=warns)
     
