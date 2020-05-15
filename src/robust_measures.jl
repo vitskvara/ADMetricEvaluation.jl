@@ -120,7 +120,7 @@ function tpr_at_fpr_gmm(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int
     N = max(min_samples, length(scores))
     
     # get rocs and the respective tpr values
-    ts = map(_->EvalCurves.tpr_at_fpr(roccurve(vcat(sample(gmm0, N), sample(gmm1, N)), 
+    ts = map(_->EvalCurves.tpr_at_fpr(roccurve(vcat(StatsBase.sample(gmm0, N), StatsBase.sample(gmm1, N)), 
                 vcat(zeros(N), ones(N)))..., fpr), 1:nrepeats)
     mean(ts)
 end
@@ -143,7 +143,7 @@ function auc_at_fpr_gmm(scores::Vector, y_true::Vector, fpr::Real, nrepeats::Int
     N = max(min_samples, length(scores))
     
     # get rocs and the respective pauc values
-    paucs = map(_->EvalCurves.auc_at_p(roccurve(vcat(sample(gmm0, N), sample(gmm1, N)), 
+    paucs = map(_->EvalCurves.auc_at_p(roccurve(vcat(StatsBase.sample(gmm0, N), StatsBase.sample(gmm1, N)), 
                 vcat(zeros(N), ones(N)))..., fpr; normalize=true), 1:nrepeats)
     mean(paucs)
 end
