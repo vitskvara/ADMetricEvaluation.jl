@@ -383,18 +383,34 @@ function evaluate_val_test_experiment(model, X, y, fprs; nsamples=1000, throw_er
 		sfpr = "$(round(Int,100*fpr))"
 		measures[!,Symbol("auc_at_$sfpr")] = 
 			_try_measure_computation(auc_at_p, fprvec,tprvec,fpr; throw_errs = throw_errs, normalize = true)
+		measures[!,Symbol("auc2_at_$sfpr")] = 
+			_try_measure_computation(auc_at_p, fprvec,tprvec,fpr*2; throw_errs = throw_errs, normalize = true)
 		measures[!,Symbol("tpr_at_$sfpr")] = 
 			_try_measure_computation(tpr_at_fpr, fprvec,tprvec,fpr; throw_errs = throw_errs)
-		measures[!,Symbol("prec_at_$sfpr")] = 
-			_try_measure_computation(mean_precision_at_p, score_fun, X, y, fpr; throw_errs = throw_errs)
-		measures[!,Symbol("f1_at_$sfpr")] = 
-			_try_measure_computation(f1_at_fpr, scores, y, fpr; throw_errs = throw_errs, warns=false)
 		measures[!,Symbol("bauc_at_$sfpr")] = 
 			_try_measure_computation(beta_auc, scores, y, fpr, nsamples; 
 				throw_errs = throw_errs, d=0.5, warns=false)
 		measures[!,Symbol("lauc_at_$sfpr")] = 
 			_try_measure_computation(localized_auc, scores, y, fpr, nsamples; 
 				throw_errs = throw_errs, d=0.5, normalize=true, warns=false)
+		measures[!,Symbol("gauss_auc_at_$sfpr")] = 
+			_try_measure_computation(gauss_auc, scores, y, fpr; 
+				throw_errs = throw_errs)
+		measures[!,Symbol("hist_auc_at_$sfpr")] = 
+			_try_measure_computation(hist_auc, scores, y, fpr, nsamples; 
+				throw_errs = throw_errs, d=0.5, warns=false)
+		measures[!,Symbol("gmm_auc_at_$sfpr")] = 
+			_try_measure_computation(auc_at_fpr_gmm, scores, y, fpr, nsamples; 
+				throw_errs = throw_errs, nc=6, warns=false)
+		measures[!,Symbol("gmm_tpr_at_$sfpr")] = 
+			_try_measure_computation(tpr_at_fpr_gmm, scores, y, fpr, nsamples; 
+				throw_errs = throw_errs, nc=6, warns=false)
+		measures[!,Symbol("bs_auc_at_$sfpr")] = 
+			_try_measure_computation(auc_at_fpr_bootstrap, scores, y, fpr, nsamples; 
+				throw_errs = throw_errs, warns=false)
+		measures[!,Symbol("bs_tpr_at_$sfpr")] = 
+			_try_measure_computation(tpr_at_fpr_bootstrap, scores, y, fpr, nsamples; 
+				throw_errs = throw_errs, warns=false)
 	end
 	return measures
 end
@@ -629,6 +645,54 @@ run_discriminability_experiment(dataset_name, model_list, model_names, param_str
 	master_save_path;
 	exp_kwargs...) = run_experiment(dataset_name, model_list, model_names, param_struct, 
 	master_save_path; discriminability_exp=true, exp_kwargs...)
+
+"""
+	get_new_split_data(dataset, normal_class, anomalous_class)
+
+Get the data for the new split.
+"""
+function get_new_split_data(dataset, normal_class, anomalous_class)
+	normal_raw = UCI.get_data(dataset, normal_class)
+	anomalous_raw = UCI.get_data(dataset, anomalous_class)
+	# we have to check this in case the class is the same as the normal one in the original problem
+	normal_X = (normal_raw[2][1] == normal_class) ? normal_raw[1].normal : normal_raw[1].medium
+	anomalous_X = (anomalous_raw[2][1] == anomalous_class) ? anomalous_raw[1].normal : anomalous_raw[1].medium
+	data = UCI.ADDataset(
+		normal_X, 
+		Array{Float32,2}(undef,0,0),
+		anomalous_X,
+		Array{Float32,2}(undef,0,0),
+		Array{Float32,2}(undef,0,0)
+		)
+end
+
+"""
+	run_new_split_experiment(dataset, normal_class, anomalous_class, model_list, model_names, 
+		param_struct, master_save_path; exp_kwargs...)
+
+Runs the experiment for a given dataset.
+"""
+function run_new_split_experiment(dataset, normal_class, anomalous_class, model_list, model_names, 
+	param_struct, master_save_path; exp_kwargs...)
+	# load data
+	data = get_new_split_data(dataset, normal_class, anomalous_class)
+
+	# setup path
+	dataset_label = "$dataset-$normal_class-$anomalous_class"
+	save_path = joinpath(master_save_path, dataset_label)
+	mkpath(save_path)
+	
+	results = []
+	p = Progress(length(model_list))
+	# and over all models 
+	for (model, model_name, params) in zip(model_list, model_names, param_struct)
+		res = run_val_test_experiment(model, model_name, params[1], params[2], data, dataset_label; 
+			save_path = save_path, exp_kwargs...)
+		push!(results, res)
+		ProgressMeter.next!(p; showvalues = [(:dataset,dataset_label), (:model,model_name)])
+	end
+	return results
+end
 
 """
 	volume(bounds)
