@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# cat data_list.txt | xargs -n 1 -P 48  julia ./run_one_beta_alternative.sh
+# cat data_list.txt | xargs -n 3 -P 48  ./run_experiment_new_split.sh
 
 dataset=$1
 normal_class=$2
