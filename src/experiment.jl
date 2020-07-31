@@ -652,7 +652,7 @@ run_discriminability_experiment(dataset_name, model_list, model_names, param_str
 Get the data for the new split.
 """
 function get_new_split_data(dataset, normal_class, anomalous_class)
-	normal_raw = UCI.get_data(dataset, normal_class)
+	normal_raw = UCI.get_data(dataset, normal_class) # this uses the processed data
 	anomalous_raw = UCI.get_data(dataset, anomalous_class)
 	# we have to check this in case the class is the same as the normal one in the original problem
 	normal_X = (normal_raw[2][1] == normal_class) ? normal_raw[1].normal : normal_raw[1].medium
