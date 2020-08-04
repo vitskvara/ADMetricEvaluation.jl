@@ -167,7 +167,7 @@ function collect_data(dfs; average_over_folds=true)
 			rename!(alldf, name => new_name	)
 		end
 	else
-		alldf[!,:dataset] = alldf[!,:dataset] .* "-fold-" .* string.(alldf[!,:iteration]  )
+		alldf[:,:dataset] = alldf[!,:dataset] .* "-fold-" .* string.(alldf[!,:iteration]  )
 	end
 	return alldf
 end

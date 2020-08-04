@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# cat data_list.txt | xargs -n 3 -P 48  ./run_experiment_new_split_small.sh
+# cat data_list_small.txt | xargs -n 3 -P 48  ./run_experiment_new_split_small.sh
 
 dataset=$1
 normal_class=$2

@@ -347,6 +347,53 @@ function _empty_res(fprs)
 	return measures
 end
 
+function _empty_res(fprs)
+	measures = DataFrame()
+
+	# basic measures
+	measures[!,:auc] = [NaN]
+	measures[!,:auc_weighted] = [NaN]
+	
+	# now the rest
+	for fpr in fprs
+		sfpr = "$(round(Int,100*fpr))"
+		measures[!,Symbol("auc_at_$sfpr")] = [NaN]
+		measures[!,Symbol("tpr_at_$sfpr")] = [NaN]
+		measures[!,Symbol("prec_at_$sfpr")] = [NaN]
+		measures[!,Symbol("f1_at_$sfpr")] = [NaN]
+		measures[!,Symbol("bauc_at_$sfpr")] = [NaN]
+		measures[!,Symbol("lauc_at_$sfpr")] = [NaN]
+	end
+
+	return measures
+end
+
+function _empty_res_new_split(fprs)
+	measures = DataFrame()
+
+	# basic measures
+	measures[!,:auc] = [NaN]
+	measures[!,:auc_weighted] = [NaN]
+	
+	# now the rest
+	for fpr in fprs
+		sfpr = "$(round(Int,100*fpr))"
+		measures[!,Symbol("auc_at_$sfpr")] = [NaN]
+		measures[!,Symbol("auc2_at_$sfpr")] = [NaN]
+		measures[!,Symbol("tpr_at_$sfpr")] = [NaN]
+		measures[!,Symbol("bauc_at_$sfpr")] = [NaN]
+		measures[!,Symbol("lauc_at_$sfpr")] = [NaN]
+		measures[!,Symbol("gauss_auc_at_$sfpr")] = [NaN]
+		measures[!,Symbol("hist_auc_at_$sfpr")] = [NaN]
+		measures[!,Symbol("gmm_auc_at_$sfpr")] = [NaN]
+		measures[!,Symbol("gmm_tpr_at_$sfpr")] = [NaN]
+		measures[!,Symbol("bs_auc_at_$sfpr")] = [NaN]
+		measures[!,Symbol("bs_tpr_at_$sfpr")] = [NaN]
+	end
+
+	return measures
+end
+
 """
 	evaluate_val_test_experiment(model, X, y, fprs; nsamples=1000, throw_errs = true)
 
@@ -370,7 +417,7 @@ function evaluate_val_test_experiment(model, X, y, fprs; nsamples=1000, throw_er
 		else
 			throw_errs ? rethrow(e) : nothing
 		end
-		return _empty_res(fprs)
+		return _empty_res_new_split(fprs)
 	end
 	fprvec, tprvec = roccurve(scores, y)
 	
